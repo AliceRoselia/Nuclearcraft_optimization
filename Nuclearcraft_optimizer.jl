@@ -34,9 +34,12 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     lapis_cooling=120,lapis_limit=20000,diamond_cooling=150,diamond_limit=20000,liquid_helium_cooling = 140, liquid_helium_limit = 20000,
     enderium_cooling = 120, enderium_limit = 20000, cryotheum_cooling = 160, cryotheum_limit = 20000,
     iron_cooling = 80, iron_limit=20000, emerald_cooling = 160,emerald_limit=20000, copper_cooling=80, copper_limit=20000,
-    tin_cooling = 120, tin_limit=20000, magnesium_cooling = 110, magnesium_limit = 20000
+    tin_cooling = 120, tin_limit=20000, magnesium_cooling = 110, magnesium_limit = 20000, num_threads = 1
     )
-    model = Model(HiGHS.Optimizer)
+    model = Model(HIGHS.Optimizer)
+    Highs_resetGlobalScheduler(1)
+    set_attribute(model, MOI.NumberOfThreads(), num_threads)
+
     @variable(model,reactor_cells[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
     @constraint(model,sum(reactor_cells)<=reactor_cell_limit)
     @variable(model,moderators[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
@@ -365,6 +368,7 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     @variable(model,y_axis_tin_suitable[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
     @variable(model,z_axis_tin_suitable[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
     @constraint(model,tin_coolants .<= x_axis_tin_suitable .+ y_axis_tin_suitable .+ z_axis_tin_suitable)
+    @constraint(model,moderator_rf .<= 1e9 .* moderators)
     for x in 1:reactor_width, y in 1:reactor_length, z in 1:reactor_height
         neighbors = get_neighbors(x,y,z,reactor_width,reactor_length,reactor_height)
 
@@ -463,7 +467,10 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     println(value.(cryotheum_coolants))
     println(value.(emerald_coolants))
     =#
-
+    println("reactor_rf: ",base_energy .* value.(reactor_rf))
+    println("moderator_rf: ",base_energy .* value.(moderator_rf))
+    println("moderator_heat: ", value.(local_heat))
+    println("reactor_heat: ", value.(reactor_heat))
     println("power: ",round(objective_value(model)*base_energy,digits=4))
     println("heat: ",round(sum(value.(reactor_heat))+sum(value.(local_heat)),digits=4))
     println("cooling: ",round(sum(value.(local_cooling)),digits=4))
@@ -517,5 +524,5 @@ end
 
 
 
-nuclearcraftoptimize(200,80,2,2,2)
+nuclearcraftoptimize(200,80,3,3,3,num_threads = 8)
 
