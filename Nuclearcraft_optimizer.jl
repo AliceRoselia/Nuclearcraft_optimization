@@ -34,12 +34,14 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     lapis_cooling=120,lapis_limit=20000,diamond_cooling=150,diamond_limit=20000,liquid_helium_cooling = 140, liquid_helium_limit = 20000,
     enderium_cooling = 120, enderium_limit = 20000, cryotheum_cooling = 160, cryotheum_limit = 20000,
     iron_cooling = 80, iron_limit=20000, emerald_cooling = 160,emerald_limit=20000, copper_cooling=80, copper_limit=20000,
-    tin_cooling = 120, tin_limit=20000, magnesium_cooling = 110, magnesium_limit = 20000, num_threads = 1
+    tin_cooling = 120, tin_limit=20000, magnesium_cooling = 110, magnesium_limit = 20000, num_threads = 1, time_limit = 0.0
     )
-    model = Model(HIGHS.Optimizer)
+    model = Model(HiGHS.Optimizer)
     Highs_resetGlobalScheduler(1)
     set_attribute(model, MOI.NumberOfThreads(), num_threads)
-
+    if time_limit !== 0.0
+        set_time_limit_sec(model,time_limit)
+    end
     @variable(model,reactor_cells[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
     @constraint(model,sum(reactor_cells)<=reactor_cell_limit)
     @variable(model,moderators[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
@@ -524,5 +526,5 @@ end
 
 
 
-nuclearcraftoptimize(200,80,3,3,3,num_threads = 8)
+nuclearcraftoptimize(200,80,5,5,5,num_threads = 8,time_limit = 18000.0)
 
