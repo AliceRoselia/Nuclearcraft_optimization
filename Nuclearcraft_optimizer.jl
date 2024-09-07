@@ -42,6 +42,8 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     if time_limit !== 0.0
         set_time_limit_sec(model,time_limit)
     end
+    set_string_names_on_creation(model,false)
+    #set_attribute(model,"mip_heuristic_effort",0.05)
     @variable(model,reactor_cells[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
     @constraint(model,sum(reactor_cells)<=reactor_cell_limit)
     @variable(model,moderators[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
@@ -526,5 +528,5 @@ end
 
 
 
-nuclearcraftoptimize(200,80,5,5,5,num_threads = 8,time_limit = 18000.0)
+nuclearcraftoptimize(200,80,3,3,3,num_threads = 8,time_limit = 18000.0)
 
