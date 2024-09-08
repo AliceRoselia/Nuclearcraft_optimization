@@ -42,6 +42,16 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
         set_time_limit_sec(model,time_limit)
     end
     set_string_names_on_creation(model,false)
+    set_attribute(model,"MIPFocus",2)
+    set_attribute(model,"FlowCoverCuts",2) #Max value for flow cover.
+    set_attribute(model,"MIRCuts",2)
+    set_attribute(model,"RelaxLiftCuts",2)
+    set_attribute(model,"RLTCuts",2)
+    set_attribute(model,"ZeroHalfCuts",2)
+    set_attribute(model,"MixingCuts",2)
+    set_attribute(model,"CoverCuts",2)
+    set_attribute(model,"ImpliedCuts",2)
+    set_attribute(model,"ProjImpliedCuts",2)
     #set_attribute(model,"mip_heuristic_effort",0.05)
     @variable(model,reactor_cells[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
     @constraint(model,sum(reactor_cells)<=reactor_cell_limit)
@@ -371,7 +381,7 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     @variable(model,y_axis_tin_suitable[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
     @variable(model,z_axis_tin_suitable[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
     @constraint(model,tin_coolants .<= x_axis_tin_suitable .+ y_axis_tin_suitable .+ z_axis_tin_suitable)
-    @constraint(model,moderator_rf .<= 1e9 .* moderators)
+    @constraint(model,moderator_rf .<= 7 .* moderators)
     for x in 1:reactor_width, y in 1:reactor_length, z in 1:reactor_height
         neighbors = get_neighbors(x,y,z,reactor_width,reactor_length,reactor_height)
 
@@ -380,8 +390,8 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
         #Not inactive moderator...
         @constraint(model,active_moderators[x,y,z]*8 <= 7*moderators[x,y,z] + sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
         @constraint(model,local_heat[x,y,z] >= base_heat*(moderators[x,y,z] - sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))) #Heat for inactive moderators.
-        @constraint(model,local_heat[x,y,z] + 1e9(1-moderators[x,y,z]) >= sum(reactor_heat[i,j,k] for (i,j,k) in neighbors)/3) #Heat for active moderators
-        @constraint(model,reactor_heat[x,y,z] + 1e9(1-reactor_cells[x,y,z]) >= base_heat*(1+2*first_side[x,y,z]+3*second_side[x,y,z]+4*third_side[x,y,z]+5*fourth_side[x,y,z]+6*fifth_side[x,y,z]+7*sixth_side[x,y,z]))
+        @constraint(model,local_heat[x,y,z] + (56*base_heat)*(1-moderators[x,y,z]) >= sum(reactor_heat[i,j,k] for (i,j,k) in neighbors)/3) #Heat for active moderators
+        @constraint(model,reactor_heat[x,y,z] + (28*base_heat)*(1-reactor_cells[x,y,z]) >= base_heat*(1+2*first_side[x,y,z]+3*second_side[x,y,z]+4*third_side[x,y,z]+5*fourth_side[x,y,z]+6*fifth_side[x,y,z]+7*sixth_side[x,y,z]))
         @constraint(model,moderator_rf[x,y,z] <= sum(reactor_rf[i,j,k] for (i,j,k) in neighbors)/6)
 
         #Now, these are the cooling constraints.
@@ -536,18 +546,41 @@ end
 nuclearcraftoptimize(168,62.5,5,5,5,num_threads = 8,time_limit = 300.0)
 
 #=
-Gomory: 25
-  Cover: 197
-  Implied bound: 44
-  Projected implied bound: 50
-  Clique: 21
-  MIR: 295
-  StrongCG: 15
-  Flow cover: 962
-  Inf proof: 26
-  Zero half: 26
-  RLT: 156
-  Relax-and-lift: 134
+Cutting planes:
+  Gomory: 42
+  Lift-and-project: 2
+  Cover: 296
+  Implied bound: 411
+  Projected implied bound: 171
+  Clique: 37
+  MIR: 2120
+  Mixing: 342
+  StrongCG: 58
+  Flow cover: 5460
+  GUB cover: 7
+  Zero half: 303
+  RLT: 1583
+  Relax-and-lift: 1679
   BQP: 5
-  PSD: 2
+  PSD: 26
+=#
+
+#=
+Cutting planes:
+  Gomory: 31
+  Lift-and-project: 2
+  Cover: 80
+  Implied bound: 140
+  Projected implied bound: 25
+  Clique: 39
+  MIR: 485
+  StrongCG: 1
+  Flow cover: 1660
+  GUB cover: 1
+  Zero half: 61
+  RLT: 241
+  Relax-and-lift: 275
+  BQP: 1
+  PSD: 1
+
 =#
