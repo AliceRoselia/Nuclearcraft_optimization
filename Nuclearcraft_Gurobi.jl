@@ -56,6 +56,7 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     set_attribute(model,"BarConvTol",0.01) #1/6 already guarantees a good enough solution. Objective can only change by 1/6 each time.
     set_attribute(model,"OptimalityTol",0.01) #Any movement after this tolerance is a lie.
     set_attribute(model,"MIPGapAbs",0.1) #It is provable that if the gap is less than 1/6, then it is optimal. Set to 0.1 for leeway.
+    set_attribute(model,"Symmetry",2)
     #set_attribute(model,"mip_heuristic_effort",0.05)
     @variable(model,reactor_cells[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
     @constraint(model,sum(reactor_cells)<=reactor_cell_limit)
