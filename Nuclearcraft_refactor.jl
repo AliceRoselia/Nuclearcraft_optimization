@@ -199,7 +199,7 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     @variable(model, 0 <= sixth_side[1:reactor_width,1:reactor_length,1:reactor_height] <= 1)
     @constraint(model, first_side .+ second_side .+ third_side .+ fourth_side .+ fifth_side .+ sixth_side .>= 
     upward_boosted_reactor .+ downward_boosted_reactor .+ leftward_boosted_reactor .+ rightward_boosted_reactor .+ forward_boosted_reactor .+ backward_boosted_reactor)
-    @variable(model,active_moderators[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=active_moderators[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied int.
 
     @constraint(model,reactor_rf .<= reactor_cells .+ upward_boosted_reactor .+ downward_boosted_reactor .+ leftward_boosted_reactor .+ rightward_boosted_reactor .+ forward_boosted_reactor .+ backward_boosted_reactor)
 
@@ -217,25 +217,25 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     @constraint(model,sum(gold_coolants) <= gold_limit)
     @variable(model,glowstone_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
     @constraint(model,sum(glowstone_coolants) <= glowstone_limit)
-    @variable(model,lapis_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=lapis_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 120
     @constraint(model,sum(lapis_coolants) <= lapis_limit)
-    @variable(model,diamond_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=diamond_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 150
     @constraint(model,sum(diamond_coolants) <= diamond_limit)
     @variable(model,liquid_helium_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
     @constraint(model,sum(liquid_helium_coolants) <= liquid_helium_limit)
-    @variable(model,enderium_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=enderium_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)#Implied integers. 120
     @constraint(model,sum(enderium_coolants) <= enderium_limit)
-    @variable(model,cryotheum_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,cryotheum_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin) #160
     @constraint(model,sum(cryotheum_coolants) <= cryotheum_limit)
-    @variable(model,iron_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=iron_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 80
     @constraint(model,sum(iron_coolants) <= iron_limit)
-    @variable(model,emerald_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=emerald_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 160
     @constraint(model,sum(emerald_coolants) <= emerald_limit)
-    @variable(model,copper_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=copper_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 80
     @constraint(model,sum(copper_coolants) <= copper_limit)
-    @variable(model,tin_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=tin_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 120
     @constraint(model,sum(tin_coolants) <= tin_limit)
-    @variable(model,magnesium_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=magnesium_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 110
     @constraint(model,sum(magnesium_coolants) <= magnesium_limit)
 
     @constraint(model, local_cooling .<= water_coolants .* water_cooling .+redstone_coolants .* redstone_cooling 
@@ -265,7 +265,9 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
         #These are the heat.
 
         #Not inactive moderator...
-        @constraint(model,active_moderators[x,y,z]*8 <= 7*moderators[x,y,z] + sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
+        #@constraint(model,active_moderators[x,y,z]*8 <= 7*moderators[x,y,z] + sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
+        @constraint(model,active_moderators[x,y,z] <= moderators[x,y,z] )
+        @constraint(model,active_moderators[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
         @constraint(model,local_heat[x,y,z] >= base_heat*(moderators[x,y,z] - sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))) #Heat for inactive moderators.
         @constraint(model,local_heat[x,y,z] + (56*base_heat)*(1-moderators[x,y,z]) >= sum(reactor_heat[i,j,k] for (i,j,k) in neighbors)/3) #Heat for active moderators
         @constraint(model,reactor_heat[x,y,z] + (28*base_heat)*(1-reactor_cells[x,y,z]) >= base_heat*(1+2*first_side[x,y,z]+3*second_side[x,y,z]+4*third_side[x,y,z]+5*fourth_side[x,y,z]+6*fifth_side[x,y,z]+7*sixth_side[x,y,z]))
@@ -416,7 +418,33 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
                 elseif value(magnesium_coolants[x,y,z]) ≈ 1.0
                     print("Mg") 
                 else
-                    print("  ")
+                    if !(value(emerald_coolants[x,y,z]) ≈ 0.0) && emerald_limit > 0
+                        print("Em")
+                        emerald_limit -= 1
+                    elseif !(value(diamond_coolants[x,y,z]) ≈ 0.0) && diamond_limit > 0
+                        print("Dm")
+                        diamond_limit -= 1
+                    elseif !(value(tin_coolants[x,y,z]) ≈ 0.0) && tin_limit > 0
+                        print("Sn")
+                        tin_limit -= 1
+                    elseif !(value(lapis_coolants[x,y,z]) ≈ 0.0) && lapis_limit > 0
+                        print("Lp")
+                        lapis_limit -= 1
+                    elseif !(value(enderium_coolants[x,y,z]) ≈ 0.0) && enderium_limit > 0
+                        print("Ed")
+                        enderium_limit -= 1
+                    elseif !(value(magnesium_coolants[x,y,z]) ≈ 0.0) && magnesium_limit > 0
+                        print("Mg")
+                        magnesium_limit -= 1
+                    elseif !(value(copper_coolants[x,y,z]) ≈ 0.0) && copper_limit > 0
+                        print("Cu")
+                        copper_limit -= 1
+                    elseif !(value(iron_coolants[x,y,z]) ≈ 0.0) && iron_limit > 0
+                        print("Fe")
+                        iron_limit -= 1
+                    else
+                        print("  ")
+                    end
                 end
             end
             println()
