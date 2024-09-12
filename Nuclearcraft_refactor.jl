@@ -428,4 +428,4 @@ end
 
 
 
-nuclearcraftoptimize(672,375,5,5,5,8,num_threads = 8,time_limit = 300.0)
+nuclearcraftoptimize(672,375,7,7,7,8,num_threads = 8,time_limit = 1200.0)
