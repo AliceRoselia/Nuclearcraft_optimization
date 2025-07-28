@@ -13,3 +13,5 @@ enderium_cooling = 120, enderium_limit = 20000, cryotheum_cooling = 160, cryothe
 iron_cooling = 80, iron_limit=20000, emerald_cooling = 160,emerald_limit=20000, copper_cooling=80, copper_limit=20000,
 tin_cooling = 120, tin_limit=20000, magnesium_cooling = 110, magnesium_limit = 20000, num_threads = 1, time_limit = 0.0
 )
+
+If you don't have Gurobi, you can use the HiGHS version.
