@@ -37,8 +37,8 @@ function nuclearcraftoptimize_relaxed(base_energy, base_heat,reactor_width, reac
     tin_cooling = 120, tin_limit=20000, magnesium_cooling = 110, magnesium_limit = 20000, num_threads = 1, time_limit = 0.0
     )
     model = Model(HiGHS.Optimizer)
-    Highs_resetGlobalScheduler(1)
-    set_attribute(model, MOI.NumberOfThreads(), num_threads)
+    #Highs_resetGlobalScheduler(1)
+    #set_attribute(model, MOI.NumberOfThreads(), num_threads)
     if time_limit !== 0.0
         set_time_limit_sec(model,time_limit)
     end
@@ -394,27 +394,13 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     tin_cooling = 120, tin_limit=20000, magnesium_cooling = 110, magnesium_limit = 20000, num_threads = 1, time_limit = 0.0
     )
     model = Model(HiGHS.Optimizer)
-    set_optimizer_attribute(model, "Threads", num_threads)
+    Highs_resetGlobalScheduler(1)
+    set_attribute(model, MOI.NumberOfThreads(), num_threads)
     if time_limit !== 0.0
         set_time_limit_sec(model,time_limit)
     end
     set_string_names_on_creation(model,false)
-    set_attribute(model,"MIPFocus",2)
-    set_attribute(model,"FlowCoverCuts",2) #Max value for flow cover.
-    set_attribute(model,"MIRCuts",2)
-    set_attribute(model,"RelaxLiftCuts",2)
-    set_attribute(model,"RLTCuts",2)
-    set_attribute(model,"ZeroHalfCuts",2)
-    set_attribute(model,"MixingCuts",2)
-    set_attribute(model,"CoverCuts",2)
-    set_attribute(model,"ImpliedCuts",2)
-    set_attribute(model,"ProjImpliedCuts",2)
-    set_attribute(model,"BQPCuts",2)
-    set_attribute(model,"Method",2) #Interior point method. Faster for large sparse problems such as this one.
-    set_attribute(model,"BarConvTol",0.001)
-    set_attribute(model,"OptimalityTol",0.01) #Any movement after this tolerance is a lie.
-    set_attribute(model,"MIPGapAbs",0.1) #It is provable that if the gap is less than 1/6, then it is optimal. Set to 0.1 for leeway.
-    set_attribute(model,"Symmetry",2)
+    
     #set_attribute(model,"mip_heuristic_effort",0.05)
     @variable(model,reactor_cells[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
     @constraint(model,sum(reactor_cells)<=reactor_cell_limit)
@@ -886,4 +872,4 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
 end
 
 
-nuclearcraftoptimize(672,375,7,7,7,8,num_threads = 8,time_limit = 1200.0)
+nuclearcraftoptimize(672,375,3,3,3,8,num_threads = 8,time_limit = 120.0)
