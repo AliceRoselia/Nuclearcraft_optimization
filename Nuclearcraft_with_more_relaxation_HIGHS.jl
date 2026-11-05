@@ -37,6 +37,9 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     iron_cooling = 80, iron_limit=20000, emerald_cooling = 160,emerald_limit=20000, copper_cooling=80, copper_limit=20000,
     tin_cooling = 120, tin_limit=20000, magnesium_cooling = 110, magnesium_limit = 20000, num_threads = 1, time_limit = 0.0
     )
+
+    MAX_COOLING = max(water_cooling,redstone_cooling,quartz_cooling,gold_cooling,glowstone_cooling,lapis_cooling,diamond_cooling,liquid_helium_cooling,enderium_cooling,
+    cryotheum_cooling,iron_cooling,emerald_cooling,copper_cooling,tin_cooling,magnesium_cooling)
     model = Model(HiGHS.Optimizer)
     Highs_resetGlobalScheduler(1)
     set_attribute(model, MOI.NumberOfThreads(), num_threads)
@@ -170,12 +173,12 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     @constraint(model,reactor_cells[1:reactor_width-5,:,:] .+ moderators[2:reactor_width-4,:,:] .+ moderators[3:reactor_width-3,:,:] .+ moderators[4:reactor_width-2,:,:] .+ moderators[5:reactor_width-1,:,:] .+ reactor_cells[6:reactor_width,:,:] .- 5 .<= rightward_boosted_reactor[1:reactor_width-5,:,:])
     
 
-    @variable(model,reactor_heat[1:reactor_width,1:reactor_length,1:reactor_height] >= 0)
-    @variable(model,local_heat[1:reactor_width,1:reactor_length,1:reactor_height] >= 0)
+    @variable(model,0<=reactor_heat[1:reactor_width,1:reactor_length,1:reactor_height] <= 28*base_heat)
+    @variable(model,0<=local_heat[1:reactor_width,1:reactor_length,1:reactor_height] <= 56*base_heat)
     #Moderator heat.
-    @variable(model,local_cooling[1:reactor_width,1:reactor_length,1:reactor_height])
-    @variable(model,reactor_rf[1:reactor_width,1:reactor_length,1:reactor_height])
-    @variable(model,moderator_rf[1:reactor_width,1:reactor_length,1:reactor_height])
+    @variable(model,0<=local_cooling[1:reactor_width,1:reactor_length,1:reactor_height]<=MAX_COOLING)
+    @variable(model,0<=reactor_rf[1:reactor_width,1:reactor_length,1:reactor_height]<=6)
+    @variable(model,0<=moderator_rf[1:reactor_width,1:reactor_length,1:reactor_height]<=6)
     @constraint(model,sum(local_heat)+sum(reactor_heat)-sum(local_cooling) <= 0)
     @objective(model,Max,sum(reactor_rf) + sum(moderator_rf))
     @variable(model, 0 <= first_side[1:reactor_width,1:reactor_length,1:reactor_height] <= 1)
@@ -415,4 +418,6 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
 end
 
 
-nuclearcraftoptimize(672,375,4,4,4,8,num_threads = 8,time_limit = 30.0)
+nuclearcraftoptimize(672,375,4,4,4,8,num_threads = 8,time_limit = 120.0)
+
+#We got about 548% gap.
