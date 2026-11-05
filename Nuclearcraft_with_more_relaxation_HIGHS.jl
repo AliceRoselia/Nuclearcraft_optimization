@@ -201,20 +201,20 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     #I will tackle only passive coolant for now.
 
     @variable(model,0<=water_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @constraint(model,sum(water_coolants) <= water_limit)
+    @constraint(model,sum(water_coolants) <= water_limit) #Water is a low-cooling so you want to set that as cheaply as possible anyway so take some risk.
     @variable(model,0<=redstone_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
     @constraint(model,sum(redstone_coolants) <= redstone_limit)
     @variable(model,0<=quartz_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
     @constraint(model,sum(quartz_coolants) <= quartz_limit)
     @variable(model,0<=gold_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
     @constraint(model,sum(gold_coolants) <= gold_limit)
-    @variable(model,0<=glowstone_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
+    @variable(model,0<=glowstone_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #This is to prevent abusive use of "half glowstone" 
     @constraint(model,sum(glowstone_coolants) <= glowstone_limit)
     @variable(model,0<=lapis_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 120
     @constraint(model,sum(lapis_coolants) <= lapis_limit)
     @variable(model,0<=diamond_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 150
     @constraint(model,sum(diamond_coolants) <= diamond_limit)
-    @variable(model,0<=liquid_helium_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
+    @variable(model,0<=liquid_helium_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #This helium is also abused quite a lot.
     @constraint(model,sum(liquid_helium_coolants) <= liquid_helium_limit)
     @variable(model,0<=enderium_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)#Implied integers. 120
     @constraint(model,sum(enderium_coolants) <= enderium_limit)
@@ -226,6 +226,7 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     @constraint(model,sum(emerald_coolants) <= emerald_limit)
     @variable(model,0<=copper_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 80
     @constraint(model,sum(copper_coolants) <= copper_limit)
+    
     @variable(model,0<=tin_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 120
     @constraint(model,sum(tin_coolants) <= tin_limit)
     @variable(model,0<=magnesium_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 110
@@ -245,10 +246,10 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     .+ iron_coolants .+ emerald_coolants .+ copper_coolants .+ tin_coolants .+ magnesium_coolants .<= 1)
 
     #Tin has a special condition that requires extra variables.
-    @variable(model,x_axis_tin_suitable[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
-    @variable(model,y_axis_tin_suitable[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
-    @variable(model,z_axis_tin_suitable[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
-    @constraint(model,tin_coolants .<= x_axis_tin_suitable .+ y_axis_tin_suitable .+ z_axis_tin_suitable)
+
+
+    
+
     @constraint(model,moderator_rf .<= 7 .* moderators)
     
     relaxation_time_limit = time_limit*0.8
@@ -276,26 +277,36 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
         #Water Cooler	60 H/t	Must be adjacent to at least one Reactor Cell or active moderator block.
         @constraint(model,water_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors) + sum(active_moderators[i,j,k] for (i,j,k) in neighbors))
         #Redstone Cooler	90 H/t	Must be adjacent to at least one Reactor Cell.
-        @constraint(model,redstone_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
+        #@constraint(model,redstone_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
+        #Combined later. 
         #Quartz Cooler	90 H/t	Must be adjacent to at least one active moderator block.
-        @constraint(model,quartz_coolants[x,y,z] <= sum(active_moderators[i,j,k] for (i,j,k) in neighbors))
+        #@constraint(model,quartz_coolants[x,y,z] <= sum(active_moderators[i,j,k] for (i,j,k) in neighbors))
+        #Combined later. 
         #Gold Cooler	120 H/t	Must be adjacent to at least one valid Water Cooler and one valid Redstone Cooler.
-        @constraint(model,gold_coolants[x,y,z] <= sum(water_coolants[i,j,k] for (i,j,k) in neighbors))
-        @constraint(model,gold_coolants[x,y,z] <= sum(redstone_coolants[i,j,k] for (i,j,k) in neighbors))
+        #@constraint(model,gold_coolants[x,y,z] <= sum(water_coolants[i,j,k] for (i,j,k) in neighbors))
+        #@constraint(model,gold_coolants[x,y,z] <= sum(redstone_coolants[i,j,k] for (i,j,k) in neighbors))
+        #Both water and redstone requirements are shared.
+
+
         #Glowstone Cooler	130 H/t	Must be adjacent to at least two active moderator blocks.
-        @constraint(model,2*glowstone_coolants[x,y,z] <= sum(active_moderators[i,j,k] for (i,j,k) in neighbors))
+        #@constraint(model,2*glowstone_coolants[x,y,z] <= sum(active_moderators[i,j,k] for (i,j,k) in neighbors))
+        #Handled layer.
+
         #Lapis Cooler	120 H/t	Must be adjacent to at least one Reactor Cell and one Reactor Casing.
-        if length(neighbors) <= 5
-            @constraint(model,lapis_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
-        else
+
+        #@constraint(model,lapis_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
+        if length(neighbors) == 6
             @constraint(model,lapis_coolants[x,y,z] <= 0)
         end
         #Diamond Cooler	150 H/t	Must be adjacent to at least one valid Water Cooler and one valid Quartz Cooler.
-        @constraint(model,diamond_coolants[x,y,z] <= sum(water_coolants[i,j,k] for (i,j,k) in neighbors))
+        #@constraint(model,diamond_coolants[x,y,z] <= sum(water_coolants[i,j,k] for (i,j,k) in neighbors))
         @constraint(model,diamond_coolants[x,y,z] <= sum(quartz_coolants[i,j,k] for (i,j,k) in neighbors))
+        #The water constraint is shared for later.
+
         #Liquid Helium Cooler	140 H/t	Must be adjacent to exactly one valid Redstone Cooler and at least one Reactor Casing.
         if length(neighbors) <= 5
-            @constraint(model,liquid_helium_coolants[x,y,z] <= sum(redstone_coolants[i,j,k] for (i,j,k) in neighbors)) #Must have at least one redstone coolant.
+            #@constraint(model,liquid_helium_coolants[x,y,z] <= sum(redstone_coolants[i,j,k] for (i,j,k) in neighbors)) #Must have at least one redstone coolant.
+            #However, due to shared redstone coolant requirements, we will keep it later.
             @constraint(model,liquid_helium_coolants[x,y,z]*6 + sum(redstone_coolants[i,j,k] for (i,j,k) in neighbors) <= 7) #Cannot exceed one.
         else
             @constraint(model,liquid_helium_coolants[x,y,z] <= 0)
@@ -304,38 +315,37 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
         if length(neighbors) != 3
             @constraint(model,enderium_coolants[x,y,z] <= 0)
         end
-        #Cryotheum Cooler*	160 H/t	Must be adjacent to at least two Reactor Cells.
-        @constraint(model,2*cryotheum_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
+        #Cryotheum Cooler*	160 H/t	Must be adjacent to at least two Reactor Cells. But we will cover later.
+        #@constraint(model,2*cryotheum_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
+
         #Iron Cooler	80 H/t	Must be adjacent to at least one valid Gold Cooler.
         @constraint(model,iron_coolants[x,y,z] <= sum(gold_coolants[i,j,k] for (i,j,k) in neighbors))
         #Emerald Cooler	160 H/t	Must be adjacent to at least one active moderator block and one Reactor Cell.
-        @constraint(model,emerald_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
-        @constraint(model,emerald_coolants[x,y,z] <= sum(active_moderators[i,j,k] for (i,j,k) in neighbors))
+        #@constraint(model,emerald_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
+        #@constraint(model,emerald_coolants[x,y,z] <= sum(active_moderators[i,j,k] for (i,j,k) in neighbors))
+
+
         #Copper Cooler	80 H/t	Must be adjacent to at least one valid Glowstone Cooler.
         @constraint(model,copper_coolants[x,y,z] <= sum(glowstone_coolants[i,j,k] for (i,j,k) in neighbors))
         #Tin Cooler	120 H/t	Must be at least between two valid Lapis Coolers along the same axis.
-        if ((x-1,y,z) in neighbors) & ((x+1,y,z) in neighbors)
-            @constraint(model,2*x_axis_tin_suitable[x,y,z] <= lapis_coolants[x-1,y,z] + lapis_coolants[x+1,y,z])
+        
+        #But we will apply relaxation and say that tin only needs to be adjacent to the wall AND two lapis.
+        if (length(neighbors) == 6 || length(neighbors) == 3)
+            @constraint(model, tin_coolants[x,y,z] <= 0)
         else
-            @constraint(model,x_axis_tin_suitable[x,y,z]<=0)
+            @constraint(model,2*tin_coolants[x,y,z] <= sum(lapis_coolants[i,j,k] for (i,j,k) in neighbors))
         end
 
-        if ((x,y-1,z) in neighbors) & ((x,y+1,z) in neighbors)
-            @constraint(model,2*y_axis_tin_suitable[x,y,z] <= lapis_coolants[x,y-1,z] + lapis_coolants[x,y+1,z])
-        else
-            @constraint(model,y_axis_tin_suitable[x,y,z]<=0)
-        end
+        #Due to relaxation, we need to combine them.
+        #These are the requirements for reactor and active moderator cells.
 
-        if ((x,y,z-1) in neighbors) & ((x,y,z+1) in neighbors)
-            @constraint(model,2*z_axis_tin_suitable[x,y,z] <= lapis_coolants[x,y,z-1] + lapis_coolants[x,y,z+1])
-        else
-            @constraint(model,z_axis_tin_suitable[x,y,z]<=0)
-        end
+        @constraint(model, 2*cryotheum_coolants[x,y,z] + redstone_coolants[x,y,z] + lapis_coolants[x,y,z] + emerald_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
+        @constraint(model, 2*glowstone_coolants[x,y,z] + magnesium_coolants[x,y,z] + quartz_coolants[x,y,z] + emerald_coolants[x,y,z] <= sum(active_moderators[i,j,k] for (i,j,k) in neighbors))
+        @constraint(model, liquid_helium_coolants[x,y,z] + gold_coolants[x,y,z] <= sum(redstone_coolants[i,j,k] for (i,j,k) in neighbors))
+        @constraint(model, diamond_coolants[x,y,z] + gold_coolants[x,y,z] <= sum(water_coolants[i,j,k] for (i,j,k) in neighbors))
         #The final constraint that sums the suitability was given above
         #Magnesium Cooler	110 H/t	Must be adjacent to at least one Reactor Casing and one active moderator block.
-        if length(neighbors) <= 5
-            @constraint(model,magnesium_coolants[x,y,z] <= sum(active_moderators[i,j,k] for (i,j,k) in neighbors))
-        else
+        if length(neighbors) == 6
             @constraint(model,magnesium_coolants[x,y,z] <= 0)
         end
     end
@@ -347,6 +357,9 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     optimize!(model)
     solution_summary(model)
 
+    println("Starting solution.")
+
+    tolerance = 0.5
     for z in 1:reactor_height
         for y in 1:reactor_length
             for x in 1:reactor_width
@@ -385,30 +398,48 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
                 elseif value(magnesium_coolants[x,y,z]) ≈ 1.0
                     print("Mg") 
                 else
-                    if !(value(emerald_coolants[x,y,z]) ≈ 0.0) && emerald_limit > 0
+                    if value(gold_coolants[x,y,z]) >= tolerance && gold_limit > 0
+                        print("Au")
+                        gold_limit -= 1
+                    elseif value(glowstone_coolants[x,y,z]) >= tolerance && glowstone_limit > 0
+                        print("Gs")
+                        glowstone_limit -= 1
+                    elseif value(cryotheum_coolants[x,y,z]) >= tolerance && cryotheum_limit > 0
+                        print("Cr")
+                        cryotheum_limit -= 1
+                    elseif value(emerald_coolants[x,y,z]) >= tolerance && emerald_limit > 0
                         print("Em")
                         emerald_limit -= 1
-                    elseif !(value(diamond_coolants[x,y,z]) ≈ 0.0) && diamond_limit > 0
+                    elseif value(diamond_coolants[x,y,z]) >= tolerance && diamond_limit > 0
                         print("Dm")
                         diamond_limit -= 1
-                    elseif !(value(tin_coolants[x,y,z]) ≈ 0.0) && tin_limit > 0
+                    elseif value(tin_coolants[x,y,z]) >= tolerance && tin_limit > 0
                         print("Sn")
                         tin_limit -= 1
-                    elseif !(value(lapis_coolants[x,y,z]) ≈ 0.0) && lapis_limit > 0
+                    elseif value(lapis_coolants[x,y,z]) >= tolerance && lapis_limit > 0
                         print("Lp")
                         lapis_limit -= 1
-                    elseif !(value(enderium_coolants[x,y,z]) ≈ 0.0) && enderium_limit > 0
+                    elseif value(enderium_coolants[x,y,z]) >= tolerance && enderium_limit > 0
                         print("Ed")
                         enderium_limit -= 1
-                    elseif !(value(magnesium_coolants[x,y,z]) ≈ 0.0) && magnesium_limit > 0
+                    elseif value(magnesium_coolants[x,y,z]) >= tolerance && magnesium_limit > 0
                         print("Mg")
                         magnesium_limit -= 1
-                    elseif !(value(copper_coolants[x,y,z]) ≈ 0.0) && copper_limit > 0
+                    elseif value(copper_coolants[x,y,z]) >= tolerance && copper_limit > 0
                         print("Cu")
                         copper_limit -= 1
-                    elseif !(value(iron_coolants[x,y,z]) ≈ 0.0) && iron_limit > 0
+                    elseif value(iron_coolants[x,y,z]) >= tolerance && iron_limit > 0
                         print("Fe")
                         iron_limit -= 1
+                    elseif value(water_coolants[x,y,z]) >= tolerance && water_limit > 0
+                        print("Wt")
+                        water_limit -= 1
+                    elseif value(redstone_coolants[x,y,z]) >= tolerance && redstone_limit > 0
+                        print("Rs")
+                        redstone_limit -= 1
+                    elseif value(quartz_coolants[x,y,z]) >= tolerance && quartz_limit > 0
+                        print("Qz")
+                        quartz_limit -= 1
                     else
                         print("  ")
                     end
@@ -421,6 +452,6 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
 end
 
 
-nuclearcraftoptimize(672,375,4,4,4,8,num_threads = 8,time_limit = 120.0)
+nuclearcraftoptimize(672,375,4,4,4,8,num_threads = 8,time_limit = 180.0)
 
 #We got about 548% gap.
