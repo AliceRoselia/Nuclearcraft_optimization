@@ -30,32 +30,33 @@ end
 
 
 function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_length, reactor_height, reactor_cell_limit = 20000;
-    water_cooling = 60, water_limit = 20000, redstone_cooling = 90, redstone_limit = 20000,
-    quartz_cooling = 90, quartz_limit = 20000, gold_cooling = 120, gold_limit = 20000, glowstone_cooling = 130, glowstone_limit = 20000,
-    lapis_cooling=120,lapis_limit=20000,diamond_cooling=150,diamond_limit=20000,liquid_helium_cooling = 140, liquid_helium_limit = 20000,
-    enderium_cooling = 120, enderium_limit = 20000, cryotheum_cooling = 160, cryotheum_limit = 20000,
-    iron_cooling = 80, iron_limit=20000, emerald_cooling = 160,emerald_limit=20000, copper_cooling=80, copper_limit=20000,
-    tin_cooling = 120, tin_limit=20000, magnesium_cooling = 110, magnesium_limit = 20000, num_threads = 1, time_limit = 0.0
-    )
+function nuclearcraftoptimize(base_energy, base_heat, reactor_width, reactor_length, reactor_height, reactor_cell_limit=20000;
+    water_cooling=60, water_limit=20000, redstone_cooling=90, redstone_limit=20000,
+    quartz_cooling=90, quartz_limit=20000, gold_cooling=120, gold_limit=20000, glowstone_cooling=130, glowstone_limit=20000,
+    lapis_cooling=120, lapis_limit=20000, diamond_cooling=150, diamond_limit=20000, liquid_helium_cooling=140, liquid_helium_limit=20000,
+    enderium_cooling=120, enderium_limit=20000, cryotheum_cooling=160, cryotheum_limit=20000,
+    iron_cooling=80, iron_limit=20000, emerald_cooling=160, emerald_limit=20000, copper_cooling=80, copper_limit=20000,
+    tin_cooling=120, tin_limit=20000, magnesium_cooling=110, magnesium_limit=20000, num_threads=1, time_limit=0.0
+)
 
-    MAX_COOLING = max(water_cooling,redstone_cooling,quartz_cooling,gold_cooling,glowstone_cooling,lapis_cooling,diamond_cooling,liquid_helium_cooling,enderium_cooling,
-    cryotheum_cooling,iron_cooling,emerald_cooling,copper_cooling,tin_cooling,magnesium_cooling)
+    MAX_COOLING = max(water_cooling, redstone_cooling, quartz_cooling, gold_cooling, glowstone_cooling, lapis_cooling, diamond_cooling, liquid_helium_cooling, enderium_cooling,
+        cryotheum_cooling, iron_cooling, emerald_cooling, copper_cooling, tin_cooling, magnesium_cooling)
     model = Model(HiGHS.Optimizer)
     Highs_resetGlobalScheduler(1)
     set_attribute(model, MOI.NumberOfThreads(), num_threads)
-    set_optimizer_attribute(model,"hipo_parallel_type","tree")
-    set_optimizer_attribute(model,"parallel","on")
+    set_optimizer_attribute(model, "hipo_parallel_type", "tree")
+    set_optimizer_attribute(model, "parallel", "on")
     if time_limit !== 0.0
 
         set_optimizer_attribute(model, "time_limit", time_limit)
     end
-    set_string_names_on_creation(model,false)
-    
+    set_string_names_on_creation(model, false)
+
     #set_attribute(model,"mip_heuristic_effort",0.05)
-    @variable(model,reactor_cells[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
-    @constraint(model,sum(reactor_cells)<=reactor_cell_limit)
-    @variable(model,moderators[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
-    
+    @variable(model, reactor_cells[1:reactor_width, 1:reactor_length, 1:reactor_height], Bin)
+    @constraint(model, sum(reactor_cells)<=reactor_cell_limit)
+    @variable(model, moderators[1:reactor_width, 1:reactor_length, 1:reactor_height], Bin)
+
 
     #You can see a weird constraint for x_ward_neutron flux. This is based on cases.
     #Case 1... it is a moderator, in this case, this is at most upward_neutron_flux of below minus 1.
@@ -65,218 +66,238 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
 
     #Neutron fluxes are implied ints.
     #x_ward boosted are also implied ints by game theory. (This is due to the tight constraint.)
-    @variable(model,0<=upward_boosted_reactor[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @variable(model,0<=upward_neutron_flux[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Actually can be unbounded below but for simplicity, let's bound the values.
-    @constraint(model,upward_neutron_flux[1:reactor_width,1:reactor_length,1] .<= reactor_cells[1:reactor_width,1:reactor_length,1])
-    @constraint(model,upward_neutron_flux[1:reactor_width,1:reactor_length,2:reactor_height] .<= (moderators[1:reactor_width,1:reactor_length,2:reactor_height].+reactor_cells[1:reactor_width,1:reactor_length,2:reactor_height]))
-    @constraint(model,upward_neutron_flux[1:reactor_width,1:reactor_length,2:reactor_height] .- (1 .-moderators[1:reactor_width,1:reactor_length,2:reactor_height]) .<= upward_neutron_flux[1:reactor_width,1:reactor_length,1:reactor_height-1])
-    @constraint(model,upward_neutron_flux[1:reactor_width,1:reactor_length,6:reactor_height] .<= 4 .+ reactor_cells[1:reactor_width,1:reactor_length,6:reactor_height] 
-    .- moderators[1:reactor_width,1:reactor_length,5:reactor_height-1] .- moderators[1:reactor_width,1:reactor_length,4:reactor_height-2] 
-    .- moderators[1:reactor_width,1:reactor_length,3:reactor_height-3] .- moderators[1:reactor_width,1:reactor_length,2:reactor_height-4])
-    @constraint(model,upward_boosted_reactor[1:reactor_width,1:reactor_length,1] .== 0) #These dummy variables would likely be optimized away. If not, they stay dummy variables without significant impact.
-    @constraint(model,upward_boosted_reactor[1:reactor_width,1:reactor_length,2:reactor_height] .<= upward_neutron_flux[1:reactor_width,1:reactor_length,1:reactor_height-1])
-    @constraint(model,upward_boosted_reactor .<= reactor_cells)
-    @constraint(model,reactor_cells[:,:,1:reactor_height-1] .+ reactor_cells[:,:,2:reactor_height] .- 1 .<= upward_boosted_reactor[:,:,2:reactor_height])
-    @constraint(model,reactor_cells[:,:,1:reactor_height-2] .+ moderators[:,:,2:reactor_height-1] .+ reactor_cells[:,:,3:reactor_height] .- 2 .<= upward_boosted_reactor[:,:,3:reactor_height])
-    @constraint(model,reactor_cells[:,:,1:reactor_height-3] .+ moderators[:,:,2:reactor_height-2] .+ moderators[:,:,3:reactor_height-1] .+ reactor_cells[:,:,4:reactor_height] .- 3 .<= upward_boosted_reactor[:,:,4:reactor_height])
-    @constraint(model,reactor_cells[:,:,1:reactor_height-4] .+ moderators[:,:,2:reactor_height-3] .+ moderators[:,:,3:reactor_height-2] .+ moderators[:,:,4:reactor_height-1] .+ reactor_cells[:,:,5:reactor_height] .- 4 .<= upward_boosted_reactor[:,:,5:reactor_height])
-    @constraint(model,reactor_cells[:,:,1:reactor_height-5] .+ moderators[:,:,2:reactor_height-4] .+ moderators[:,:,3:reactor_height-3] .+ moderators[:,:,4:reactor_height-2] .+ moderators[:,:,5:reactor_height-1] .+ reactor_cells[:,:,6:reactor_height] .- 5 .<= upward_boosted_reactor[:,:,6:reactor_height])
+    @variable(model, 0<=upward_boosted_reactor[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @variable(model, 0<=upward_neutron_flux[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1) #Actually can be unbounded below but for simplicity, let's bound the values.
+    @constraint(model, upward_neutron_flux[1:reactor_width, 1:reactor_length, 1] .<= reactor_cells[1:reactor_width, 1:reactor_length, 1])
+    @constraint(model, upward_neutron_flux[1:reactor_width, 1:reactor_length, 2:reactor_height] .<= (moderators[1:reactor_width, 1:reactor_length, 2:reactor_height] .+ reactor_cells[1:reactor_width, 1:reactor_length, 2:reactor_height]))
+    @constraint(model, upward_neutron_flux[1:reactor_width, 1:reactor_length, 2:reactor_height] .- (1 .- moderators[1:reactor_width, 1:reactor_length, 2:reactor_height]) .<= upward_neutron_flux[1:reactor_width, 1:reactor_length, 1:(reactor_height-1)])
+    @constraint(model, upward_neutron_flux[1:reactor_width, 1:reactor_length, 6:reactor_height] .<= 4 .+ reactor_cells[1:reactor_width, 1:reactor_length, 6:reactor_height]
+        .-
+        moderators[1:reactor_width, 1:reactor_length, 5:(reactor_height-1)] .- moderators[1:reactor_width, 1:reactor_length, 4:(reactor_height-2)]
+        .-
+        moderators[1:reactor_width, 1:reactor_length, 3:(reactor_height-3)] .- moderators[1:reactor_width, 1:reactor_length, 2:(reactor_height-4)])
+    @constraint(model, upward_boosted_reactor[1:reactor_width, 1:reactor_length, 1] .== 0) #These dummy variables would likely be optimized away. If not, they stay dummy variables without significant impact.
+    @constraint(model, upward_boosted_reactor[1:reactor_width, 1:reactor_length, 2:reactor_height] .<= upward_neutron_flux[1:reactor_width, 1:reactor_length, 1:(reactor_height-1)])
+    @constraint(model, upward_boosted_reactor .<= reactor_cells)
+    @constraint(model, reactor_cells[:, :, 1:(reactor_height-1)] .+ reactor_cells[:, :, 2:reactor_height] .- 1 .<= upward_boosted_reactor[:, :, 2:reactor_height])
+    @constraint(model, reactor_cells[:, :, 1:(reactor_height-2)] .+ moderators[:, :, 2:(reactor_height-1)] .+ reactor_cells[:, :, 3:reactor_height] .- 2 .<= upward_boosted_reactor[:, :, 3:reactor_height])
+    @constraint(model, reactor_cells[:, :, 1:(reactor_height-3)] .+ moderators[:, :, 2:(reactor_height-2)] .+ moderators[:, :, 3:(reactor_height-1)] .+ reactor_cells[:, :, 4:reactor_height] .- 3 .<= upward_boosted_reactor[:, :, 4:reactor_height])
+    @constraint(model, reactor_cells[:, :, 1:(reactor_height-4)] .+ moderators[:, :, 2:(reactor_height-3)] .+ moderators[:, :, 3:(reactor_height-2)] .+ moderators[:, :, 4:(reactor_height-1)] .+ reactor_cells[:, :, 5:reactor_height] .- 4 .<= upward_boosted_reactor[:, :, 5:reactor_height])
+    @constraint(model, reactor_cells[:, :, 1:(reactor_height-5)] .+ moderators[:, :, 2:(reactor_height-4)] .+ moderators[:, :, 3:(reactor_height-3)] .+ moderators[:, :, 4:(reactor_height-2)] .+ moderators[:, :, 5:(reactor_height-1)] .+ reactor_cells[:, :, 6:reactor_height] .- 5 .<= upward_boosted_reactor[:, :, 6:reactor_height])
     #Downward boosted.
-    @variable(model,0<=downward_boosted_reactor[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @variable(model,0<=downward_neutron_flux[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @constraint(model,downward_neutron_flux[1:reactor_width,1:reactor_length,reactor_height] .<= reactor_cells[1:reactor_width,1:reactor_length,reactor_height])
-    @constraint(model,downward_neutron_flux[1:reactor_width,1:reactor_length,1:reactor_height-1] .<= (reactor_cells[1:reactor_width,1:reactor_length,1:reactor_height-1] .+ moderators[1:reactor_width,1:reactor_length,1:reactor_height-1]))
-    @constraint(model,downward_neutron_flux[1:reactor_width,1:reactor_length,1:reactor_height-1] .- (1 .-moderators[1:reactor_width,1:reactor_length,1:reactor_height-1]) .<= downward_neutron_flux[1:reactor_width,1:reactor_length,2:reactor_height])
-    @constraint(model,downward_neutron_flux[1:reactor_width,1:reactor_length,1:reactor_height-6] .<= 4 .+ reactor_cells[1:reactor_width,1:reactor_length,1:reactor_height-6] 
-    .- moderators[1:reactor_width,1:reactor_length,2:reactor_height-5] .- moderators[1:reactor_width,1:reactor_length,3:reactor_height-4] 
-    .- moderators[1:reactor_width,1:reactor_length,4:reactor_height-3] .- moderators[1:reactor_width,1:reactor_length,5:reactor_height-2])
-    @constraint(model,downward_boosted_reactor[1:reactor_width,1:reactor_length,reactor_height] .== 0)
-    @constraint(model,downward_boosted_reactor[1:reactor_width,1:reactor_length,1:reactor_height-1] .<= downward_neutron_flux[1:reactor_width,1:reactor_length,2:reactor_height])
-    @constraint(model,downward_boosted_reactor .<= reactor_cells)
-    @constraint(model,reactor_cells[:,:,2:end] .+ reactor_cells[:,:,1:end-1] .- 1 .<= downward_boosted_reactor[:,:,1:end-1])
-    @constraint(model,reactor_cells[:,:,3:end] .+ moderators[:,:,2:end-1] .+ reactor_cells[:,:,1:end-2] .- 2 .<= downward_boosted_reactor[:,:,1:end-2])
-    @constraint(model,reactor_cells[:,:,4:end] .+ moderators[:,:,3:end-1] .+ moderators[:,:,2:end-2] .+ reactor_cells[:,:,1:end-3] .- 3 .<= downward_boosted_reactor[:,:,1:end-3])
-    @constraint(model,reactor_cells[:,:,5:end] .+ moderators[:,:,4:end-1] .+ moderators[:,:,3:end-2] .+ moderators[:,:,2:end-3] .+ reactor_cells[:,:,1:end-4] .- 4 .<= downward_boosted_reactor[:,:,1:end-4])
-    @constraint(model,reactor_cells[:,:,6:end] .+ moderators[:,:,5:end-1] .+ moderators[:,:,4:end-2] .+ moderators[:,:,3:end-3] .+ moderators[:,:,2:end-4] .+ reactor_cells[:,:,1:end-5] .- 5 .<= downward_boosted_reactor[:,:,1:end-5])
-    
-    #Forward.
-    @variable(model,0<=forward_boosted_reactor[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @variable(model,0<=forward_neutron_flux[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
+    @variable(model, 0<=downward_boosted_reactor[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @variable(model, 0<=downward_neutron_flux[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @constraint(model, downward_neutron_flux[1:reactor_width, 1:reactor_length, reactor_height] .<= reactor_cells[1:reactor_width, 1:reactor_length, reactor_height])
+    @constraint(model, downward_neutron_flux[1:reactor_width, 1:reactor_length, 1:(reactor_height-1)] .<= (reactor_cells[1:reactor_width, 1:reactor_length, 1:(reactor_height-1)] .+ moderators[1:reactor_width, 1:reactor_length, 1:(reactor_height-1)]))
+    @constraint(model, downward_neutron_flux[1:reactor_width, 1:reactor_length, 1:(reactor_height-1)] .- (1 .- moderators[1:reactor_width, 1:reactor_length, 1:(reactor_height-1)]) .<= downward_neutron_flux[1:reactor_width, 1:reactor_length, 2:reactor_height])
+    @constraint(model, downward_neutron_flux[1:reactor_width, 1:reactor_length, 1:(reactor_height-6)] .<= 4 .+ reactor_cells[1:reactor_width, 1:reactor_length, 1:(reactor_height-6)]
+        .-
+        moderators[1:reactor_width, 1:reactor_length, 2:(reactor_height-5)] .- moderators[1:reactor_width, 1:reactor_length, 3:(reactor_height-4)]
+        .-
+        moderators[1:reactor_width, 1:reactor_length, 4:(reactor_height-3)] .- moderators[1:reactor_width, 1:reactor_length, 5:(reactor_height-2)])
+    @constraint(model, downward_boosted_reactor[1:reactor_width, 1:reactor_length, reactor_height] .== 0)
+    @constraint(model, downward_boosted_reactor[1:reactor_width, 1:reactor_length, 1:(reactor_height-1)] .<= downward_neutron_flux[1:reactor_width, 1:reactor_length, 2:reactor_height])
+    @constraint(model, downward_boosted_reactor .<= reactor_cells)
+    @constraint(model, reactor_cells[:, :, 2:end] .+ reactor_cells[:, :, 1:(end-1)] .- 1 .<= downward_boosted_reactor[:, :, 1:(end-1)])
+    @constraint(model, reactor_cells[:, :, 3:end] .+ moderators[:, :, 2:(end-1)] .+ reactor_cells[:, :, 1:(end-2)] .- 2 .<= downward_boosted_reactor[:, :, 1:(end-2)])
+    @constraint(model, reactor_cells[:, :, 4:end] .+ moderators[:, :, 3:(end-1)] .+ moderators[:, :, 2:(end-2)] .+ reactor_cells[:, :, 1:(end-3)] .- 3 .<= downward_boosted_reactor[:, :, 1:(end-3)])
+    @constraint(model, reactor_cells[:, :, 5:end] .+ moderators[:, :, 4:(end-1)] .+ moderators[:, :, 3:(end-2)] .+ moderators[:, :, 2:(end-3)] .+ reactor_cells[:, :, 1:(end-4)] .- 4 .<= downward_boosted_reactor[:, :, 1:(end-4)])
+    @constraint(model, reactor_cells[:, :, 6:end] .+ moderators[:, :, 5:(end-1)] .+ moderators[:, :, 4:(end-2)] .+ moderators[:, :, 3:(end-3)] .+ moderators[:, :, 2:(end-4)] .+ reactor_cells[:, :, 1:(end-5)] .- 5 .<= downward_boosted_reactor[:, :, 1:(end-5)])
 
-    
-    @constraint(model,forward_neutron_flux[1:reactor_width,1,1:reactor_height] .<= reactor_cells[1:reactor_width,1,1:reactor_height])
-    @constraint(model,forward_neutron_flux[1:reactor_width,2:reactor_length,1:reactor_height] .<= (moderators[1:reactor_width,2:reactor_length,1:reactor_height].+reactor_cells[1:reactor_width,2:reactor_length,1:reactor_height]))
-    @constraint(model,forward_neutron_flux[1:reactor_width,2:reactor_length,1:reactor_height] .- (1 .-moderators[1:reactor_width,2:reactor_length,1:reactor_height]) .<= forward_neutron_flux[1:reactor_width,1:reactor_length-1,1:reactor_height])
-    @constraint(model,forward_neutron_flux[1:reactor_width,6:reactor_length,1:reactor_height] .<= 4 .+ reactor_cells[1:reactor_width,6:reactor_length,1:reactor_height] 
-    .- moderators[1:reactor_width,5:reactor_length-1,1:reactor_height] .- moderators[1:reactor_width,4:reactor_length-2,1:reactor_height] 
-    .- moderators[1:reactor_width,3:reactor_length-3,1:reactor_height] .- moderators[1:reactor_width,2:reactor_length-4,1:reactor_height])
-    @constraint(model,forward_boosted_reactor[1:reactor_width,1,1:reactor_height] .== 0) #These dummy variables would likely be optimized away. If not, they stay dummy variables without significant impact.
-    @constraint(model,forward_boosted_reactor[1:reactor_width,2:reactor_length,1:reactor_height] .<= forward_neutron_flux[1:reactor_width,1:reactor_length-1,1:reactor_height])
-    @constraint(model,forward_boosted_reactor .<= reactor_cells)
-    @constraint(model,reactor_cells[:,2:end,:] .+ reactor_cells[:,1:end-1,:] .- 1 .<= forward_boosted_reactor[:,2:end,:])
-    @constraint(model,reactor_cells[:,3:end,:] .+ moderators[:,2:end-1,:] .+ reactor_cells[:,1:end-2,:] .- 2 .<= forward_boosted_reactor[:,3:end,:])
-    @constraint(model,reactor_cells[:,4:end,:] .+ moderators[:,3:end-1,:] .+ moderators[:,2:end-2,:] .+ reactor_cells[:,1:end-3,:] .- 3 .<= forward_boosted_reactor[:,4:end,:])
-    @constraint(model,reactor_cells[:,5:end,:] .+ moderators[:,4:end-1,:] .+ moderators[:,3:end-2,:] .+ moderators[:,2:end-3,:] .+ reactor_cells[:,1:end-4,:] .- 4 .<= forward_boosted_reactor[:,5:end,:])
-    @constraint(model,reactor_cells[:,6:end,:] .+ moderators[:,5:end-1,:] .+ moderators[:,4:end-2,:] .+ moderators[:,3:end-3,:] .+ moderators[:,2:end-4,:] .+ reactor_cells[:,1:end-5,:] .- 5 .<= forward_boosted_reactor[:,6:end,:])
-    
+    #Forward.
+    @variable(model, 0<=forward_boosted_reactor[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @variable(model, 0<=forward_neutron_flux[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+
+
+    @constraint(model, forward_neutron_flux[1:reactor_width, 1, 1:reactor_height] .<= reactor_cells[1:reactor_width, 1, 1:reactor_height])
+    @constraint(model, forward_neutron_flux[1:reactor_width, 2:reactor_length, 1:reactor_height] .<= (moderators[1:reactor_width, 2:reactor_length, 1:reactor_height] .+ reactor_cells[1:reactor_width, 2:reactor_length, 1:reactor_height]))
+    @constraint(model, forward_neutron_flux[1:reactor_width, 2:reactor_length, 1:reactor_height] .- (1 .- moderators[1:reactor_width, 2:reactor_length, 1:reactor_height]) .<= forward_neutron_flux[1:reactor_width, 1:(reactor_length-1), 1:reactor_height])
+    @constraint(model, forward_neutron_flux[1:reactor_width, 6:reactor_length, 1:reactor_height] .<= 4 .+ reactor_cells[1:reactor_width, 6:reactor_length, 1:reactor_height]
+        .-
+        moderators[1:reactor_width, 5:(reactor_length-1), 1:reactor_height] .- moderators[1:reactor_width, 4:(reactor_length-2), 1:reactor_height]
+        .-
+        moderators[1:reactor_width, 3:(reactor_length-3), 1:reactor_height] .- moderators[1:reactor_width, 2:(reactor_length-4), 1:reactor_height])
+    @constraint(model, forward_boosted_reactor[1:reactor_width, 1, 1:reactor_height] .== 0) #These dummy variables would likely be optimized away. If not, they stay dummy variables without significant impact.
+    @constraint(model, forward_boosted_reactor[1:reactor_width, 2:reactor_length, 1:reactor_height] .<= forward_neutron_flux[1:reactor_width, 1:(reactor_length-1), 1:reactor_height])
+    @constraint(model, forward_boosted_reactor .<= reactor_cells)
+    @constraint(model, reactor_cells[:, 2:end, :] .+ reactor_cells[:, 1:(end-1), :] .- 1 .<= forward_boosted_reactor[:, 2:end, :])
+    @constraint(model, reactor_cells[:, 3:end, :] .+ moderators[:, 2:(end-1), :] .+ reactor_cells[:, 1:(end-2), :] .- 2 .<= forward_boosted_reactor[:, 3:end, :])
+    @constraint(model, reactor_cells[:, 4:end, :] .+ moderators[:, 3:(end-1), :] .+ moderators[:, 2:(end-2), :] .+ reactor_cells[:, 1:(end-3), :] .- 3 .<= forward_boosted_reactor[:, 4:end, :])
+    @constraint(model, reactor_cells[:, 5:end, :] .+ moderators[:, 4:(end-1), :] .+ moderators[:, 3:(end-2), :] .+ moderators[:, 2:(end-3), :] .+ reactor_cells[:, 1:(end-4), :] .- 4 .<= forward_boosted_reactor[:, 5:end, :])
+    @constraint(model, reactor_cells[:, 6:end, :] .+ moderators[:, 5:(end-1), :] .+ moderators[:, 4:(end-2), :] .+ moderators[:, 3:(end-3), :] .+ moderators[:, 2:(end-4), :] .+ reactor_cells[:, 1:(end-5), :] .- 5 .<= forward_boosted_reactor[:, 6:end, :])
+
     #Backward
-    @variable(model,0<=backward_boosted_reactor[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @variable(model,0<=backward_neutron_flux[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @constraint(model,backward_neutron_flux[1:reactor_width,reactor_length,1:reactor_height] .<= reactor_cells[1:reactor_width,reactor_length,1:reactor_height])
-    @constraint(model,backward_neutron_flux[1:reactor_width,1:reactor_length-1,1:reactor_height] .<= (reactor_cells[1:reactor_width,1:reactor_length-1,1:reactor_height] .+ moderators[1:reactor_width,1:reactor_length-1,1:reactor_height]))
-    @constraint(model,backward_neutron_flux[1:reactor_width,1:reactor_length-1,1:reactor_height] .- (1 .-moderators[1:reactor_width,1:reactor_length-1,1:reactor_height]) .<= backward_neutron_flux[1:reactor_width,2:reactor_length,1:reactor_height])
-    @constraint(model,backward_neutron_flux[1:reactor_width,1:reactor_length-6,1:reactor_height] .<= 4 .+ reactor_cells[1:reactor_width,1:reactor_length-6,1:reactor_height]
-    .- moderators[1:reactor_width,2:reactor_length-5,1:reactor_height] .- moderators[1:reactor_width,3:reactor_length-4,1:reactor_height]
-    .- moderators[1:reactor_width,4:reactor_length-3,1:reactor_height] .- moderators[1:reactor_width,5:reactor_length-2,1:reactor_height])
-    @constraint(model,backward_boosted_reactor[1:reactor_width,reactor_length,1:reactor_height] .== 0)
-    @constraint(model,backward_boosted_reactor[1:reactor_width,1:reactor_length-1,1:reactor_height] .<= backward_neutron_flux[1:reactor_width,2:reactor_length,1:reactor_height])
-    @constraint(model,backward_boosted_reactor .<= reactor_cells)
-    @constraint(model,reactor_cells[:,1:reactor_length-1,:] .+ reactor_cells[:,2:reactor_length,:] .- 1 .<= backward_boosted_reactor[:,1:reactor_length-1,:])
-    @constraint(model,reactor_cells[:,1:reactor_length-2,:] .+ moderators[:,2:reactor_length-1,:] .+ reactor_cells[:,3:reactor_length,:] .- 2 .<= backward_boosted_reactor[:,1:reactor_length-2,:])
-    @constraint(model,reactor_cells[:,1:reactor_length-3,:] .+ moderators[:,2:reactor_length-2,:] .+ moderators[:,3:reactor_length-1,:] .+ reactor_cells[:,4:reactor_length,:] .- 3 .<= backward_boosted_reactor[:,1:reactor_length-3,:])
-    @constraint(model,reactor_cells[:,1:reactor_length-4,:] .+ moderators[:,2:reactor_length-3,:] .+ moderators[:,3:reactor_length-2,:] .+ moderators[:,4:reactor_length-1,:] .+ reactor_cells[:,5:reactor_length,:] .- 4 .<= backward_boosted_reactor[:,1:reactor_length-4,:])
-    @constraint(model,reactor_cells[:,1:reactor_length-5,:] .+ moderators[:,2:reactor_length-4,:] .+ moderators[:,3:reactor_length-3,:] .+ moderators[:,4:reactor_length-2,:] .+ moderators[:,5:reactor_length-1,:] .+ reactor_cells[:,6:reactor_length,:] .- 5 .<= backward_boosted_reactor[:,1:reactor_length-5,:])
-    
+    @variable(model, 0<=backward_boosted_reactor[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @variable(model, 0<=backward_neutron_flux[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @constraint(model, backward_neutron_flux[1:reactor_width, reactor_length, 1:reactor_height] .<= reactor_cells[1:reactor_width, reactor_length, 1:reactor_height])
+    @constraint(model, backward_neutron_flux[1:reactor_width, 1:(reactor_length-1), 1:reactor_height] .<= (reactor_cells[1:reactor_width, 1:(reactor_length-1), 1:reactor_height] .+ moderators[1:reactor_width, 1:(reactor_length-1), 1:reactor_height]))
+    @constraint(model, backward_neutron_flux[1:reactor_width, 1:(reactor_length-1), 1:reactor_height] .- (1 .- moderators[1:reactor_width, 1:(reactor_length-1), 1:reactor_height]) .<= backward_neutron_flux[1:reactor_width, 2:reactor_length, 1:reactor_height])
+    @constraint(model, backward_neutron_flux[1:reactor_width, 1:(reactor_length-6), 1:reactor_height] .<= 4 .+ reactor_cells[1:reactor_width, 1:(reactor_length-6), 1:reactor_height]
+        .-
+        moderators[1:reactor_width, 2:(reactor_length-5), 1:reactor_height] .- moderators[1:reactor_width, 3:(reactor_length-4), 1:reactor_height]
+        .-
+        moderators[1:reactor_width, 4:(reactor_length-3), 1:reactor_height] .- moderators[1:reactor_width, 5:(reactor_length-2), 1:reactor_height])
+    @constraint(model, backward_boosted_reactor[1:reactor_width, reactor_length, 1:reactor_height] .== 0)
+    @constraint(model, backward_boosted_reactor[1:reactor_width, 1:(reactor_length-1), 1:reactor_height] .<= backward_neutron_flux[1:reactor_width, 2:reactor_length, 1:reactor_height])
+    @constraint(model, backward_boosted_reactor .<= reactor_cells)
+    @constraint(model, reactor_cells[:, 1:(reactor_length-1), :] .+ reactor_cells[:, 2:reactor_length, :] .- 1 .<= backward_boosted_reactor[:, 1:(reactor_length-1), :])
+    @constraint(model, reactor_cells[:, 1:(reactor_length-2), :] .+ moderators[:, 2:(reactor_length-1), :] .+ reactor_cells[:, 3:reactor_length, :] .- 2 .<= backward_boosted_reactor[:, 1:(reactor_length-2), :])
+    @constraint(model, reactor_cells[:, 1:(reactor_length-3), :] .+ moderators[:, 2:(reactor_length-2), :] .+ moderators[:, 3:(reactor_length-1), :] .+ reactor_cells[:, 4:reactor_length, :] .- 3 .<= backward_boosted_reactor[:, 1:(reactor_length-3), :])
+    @constraint(model, reactor_cells[:, 1:(reactor_length-4), :] .+ moderators[:, 2:(reactor_length-3), :] .+ moderators[:, 3:(reactor_length-2), :] .+ moderators[:, 4:(reactor_length-1), :] .+ reactor_cells[:, 5:reactor_length, :] .- 4 .<= backward_boosted_reactor[:, 1:(reactor_length-4), :])
+    @constraint(model, reactor_cells[:, 1:(reactor_length-5), :] .+ moderators[:, 2:(reactor_length-4), :] .+ moderators[:, 3:(reactor_length-3), :] .+ moderators[:, 4:(reactor_length-2), :] .+ moderators[:, 5:(reactor_length-1), :] .+ reactor_cells[:, 6:reactor_length, :] .- 5 .<= backward_boosted_reactor[:, 1:(reactor_length-5), :])
+
     #The code style is a bit inconsistent. Artifact of old code. But well, if it works, it works.
     #Leftward.
-    @variable(model,0<=leftward_boosted_reactor[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @variable(model,0<=leftward_neutron_flux[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @constraint(model,leftward_neutron_flux[1,1:reactor_length,1:reactor_height] .<= reactor_cells[1,1:reactor_length,1:reactor_height])
-    @constraint(model,leftward_neutron_flux[2:reactor_width,1:reactor_length,1:reactor_height] .<= (moderators[2:reactor_width,1:reactor_length,1:reactor_height].+reactor_cells[2:reactor_width,1:reactor_length,1:reactor_height]))
-    @constraint(model,leftward_neutron_flux[2:reactor_width,1:reactor_length,1:reactor_height] .- (1 .-moderators[2:reactor_width,1:reactor_length,1:reactor_height]) .<= leftward_neutron_flux[1:reactor_width-1,1:reactor_length,1:reactor_height])
-    @constraint(model,leftward_neutron_flux[6:reactor_width,1:reactor_length,1:reactor_height] .<= 4 .+ reactor_cells[6:reactor_width,1:reactor_length,1:reactor_height] 
-    .- moderators[5:reactor_width-1,1:reactor_length,1:reactor_height] .- moderators[4:reactor_width-2,1:reactor_length,1:reactor_height] 
-    .- moderators[3:reactor_width-3,1:reactor_length,1:reactor_height] .- moderators[2:reactor_width-4,1:reactor_length,1:reactor_height])
-    @constraint(model,leftward_boosted_reactor[1,1:reactor_length,1:reactor_height] .== 0) #These dummy variables would likely be optimized away. If not, they stay dummy variables without significant impact.
-    @constraint(model,leftward_boosted_reactor[2:reactor_width,1:reactor_length,1:reactor_height] .<= leftward_neutron_flux[1:reactor_width-1,1:reactor_length,1:reactor_height])
-    @constraint(model,leftward_boosted_reactor .<= reactor_cells)
-    @constraint(model,reactor_cells[2:end,:,:] .+ reactor_cells[1:end-1,:,:] .- 1 .<= leftward_boosted_reactor[2:end,:,:])
-    @constraint(model,reactor_cells[3:end,:,:] .+ moderators[2:end-1,:,:] .+ reactor_cells[1:end-2,:,:] .- 2 .<= leftward_boosted_reactor[3:end,:,:])
-    @constraint(model,reactor_cells[4:end,:,:] .+ moderators[3:end-1,:,:] .+ moderators[2:end-2,:,:] .+ reactor_cells[1:end-3,:,:] .- 3 .<= leftward_boosted_reactor[4:end,:,:])
-    @constraint(model,reactor_cells[5:end,:,:] .+ moderators[4:end-1,:,:] .+ moderators[3:end-2,:,:] .+ moderators[2:end-3,:,:] .+ reactor_cells[1:end-4,:,:] .- 4 .<= leftward_boosted_reactor[5:end,:,:])
-    @constraint(model,reactor_cells[6:end,:,:] .+ moderators[5:end-1,:,:] .+ moderators[4:end-2,:,:] .+ moderators[3:end-3,:,:] .+ moderators[2:end-4,:,:] .+ reactor_cells[1:end-5,:,:] .- 5 .<= leftward_boosted_reactor[6:end,:,:])
-    
-    
+    @variable(model, 0<=leftward_boosted_reactor[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @variable(model, 0<=leftward_neutron_flux[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @constraint(model, leftward_neutron_flux[1, 1:reactor_length, 1:reactor_height] .<= reactor_cells[1, 1:reactor_length, 1:reactor_height])
+    @constraint(model, leftward_neutron_flux[2:reactor_width, 1:reactor_length, 1:reactor_height] .<= (moderators[2:reactor_width, 1:reactor_length, 1:reactor_height] .+ reactor_cells[2:reactor_width, 1:reactor_length, 1:reactor_height]))
+    @constraint(model, leftward_neutron_flux[2:reactor_width, 1:reactor_length, 1:reactor_height] .- (1 .- moderators[2:reactor_width, 1:reactor_length, 1:reactor_height]) .<= leftward_neutron_flux[1:(reactor_width-1), 1:reactor_length, 1:reactor_height])
+    @constraint(model, leftward_neutron_flux[6:reactor_width, 1:reactor_length, 1:reactor_height] .<= 4 .+ reactor_cells[6:reactor_width, 1:reactor_length, 1:reactor_height]
+        .-
+        moderators[5:(reactor_width-1), 1:reactor_length, 1:reactor_height] .- moderators[4:(reactor_width-2), 1:reactor_length, 1:reactor_height]
+        .-
+        moderators[3:(reactor_width-3), 1:reactor_length, 1:reactor_height] .- moderators[2:(reactor_width-4), 1:reactor_length, 1:reactor_height])
+    @constraint(model, leftward_boosted_reactor[1, 1:reactor_length, 1:reactor_height] .== 0) #These dummy variables would likely be optimized away. If not, they stay dummy variables without significant impact.
+    @constraint(model, leftward_boosted_reactor[2:reactor_width, 1:reactor_length, 1:reactor_height] .<= leftward_neutron_flux[1:(reactor_width-1), 1:reactor_length, 1:reactor_height])
+    @constraint(model, leftward_boosted_reactor .<= reactor_cells)
+    @constraint(model, reactor_cells[2:end, :, :] .+ reactor_cells[1:(end-1), :, :] .- 1 .<= leftward_boosted_reactor[2:end, :, :])
+    @constraint(model, reactor_cells[3:end, :, :] .+ moderators[2:(end-1), :, :] .+ reactor_cells[1:(end-2), :, :] .- 2 .<= leftward_boosted_reactor[3:end, :, :])
+    @constraint(model, reactor_cells[4:end, :, :] .+ moderators[3:(end-1), :, :] .+ moderators[2:(end-2), :, :] .+ reactor_cells[1:(end-3), :, :] .- 3 .<= leftward_boosted_reactor[4:end, :, :])
+    @constraint(model, reactor_cells[5:end, :, :] .+ moderators[4:(end-1), :, :] .+ moderators[3:(end-2), :, :] .+ moderators[2:(end-3), :, :] .+ reactor_cells[1:(end-4), :, :] .- 4 .<= leftward_boosted_reactor[5:end, :, :])
+    @constraint(model, reactor_cells[6:end, :, :] .+ moderators[5:(end-1), :, :] .+ moderators[4:(end-2), :, :] .+ moderators[3:(end-3), :, :] .+ moderators[2:(end-4), :, :] .+ reactor_cells[1:(end-5), :, :] .- 5 .<= leftward_boosted_reactor[6:end, :, :])
+
+
     #Rightward.
-    @variable(model,0<=rightward_boosted_reactor[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @variable(model,0<=rightward_neutron_flux[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @constraint(model,rightward_neutron_flux[reactor_width,1:reactor_length,1:reactor_height] .<= reactor_cells[reactor_width,1:reactor_length,1:reactor_height])
-    @constraint(model,rightward_neutron_flux[1:reactor_width-1,1:reactor_length,1:reactor_height] .<= (reactor_cells[1:reactor_width-1,1:reactor_length,1:reactor_height] .+ moderators[1:reactor_width-1,1:reactor_length,1:reactor_height]))
-    @constraint(model,rightward_neutron_flux[1:reactor_width-1,1:reactor_length,1:reactor_height] .- (1 .-moderators[1:reactor_width-1,1:reactor_length,1:reactor_height]) .<= rightward_neutron_flux[2:reactor_width,1:reactor_length,1:reactor_height])
-    @constraint(model,rightward_neutron_flux[1:reactor_width-6,1:reactor_length,1:reactor_height] .<= 4 .+ reactor_cells[1:reactor_width-6,1:reactor_length,1:reactor_height]
-    .- moderators[2:reactor_width-5,1:reactor_length,1:reactor_height] .- moderators[3:reactor_width-4,1:reactor_length,1:reactor_height]
-    .- moderators[4:reactor_width-3,1:reactor_length,1:reactor_height] .- moderators[5:reactor_width-2,1:reactor_length,1:reactor_height])
-    @constraint(model,rightward_boosted_reactor[reactor_width,1:reactor_length,1:reactor_height] .== 0)
-    @constraint(model,rightward_boosted_reactor[1:reactor_width-1,1:reactor_length,1:reactor_height] .<= rightward_neutron_flux[2:reactor_width,1:reactor_length,1:reactor_height])
-    @constraint(model,rightward_boosted_reactor .<= reactor_cells)
-    @constraint(model,reactor_cells[1:reactor_width-1,:,:] .+ reactor_cells[2:reactor_width,:,:] .- 1 .<= rightward_boosted_reactor[1:reactor_width-1,:,:])
-    @constraint(model,reactor_cells[1:reactor_width-2,:,:] .+ moderators[2:reactor_width-1,:,:] .+ reactor_cells[3:reactor_width,:,:] .- 2 .<= rightward_boosted_reactor[1:reactor_width-2,:,:])
-    @constraint(model,reactor_cells[1:reactor_width-3,:,:] .+ moderators[2:reactor_width-2,:,:] .+ moderators[3:reactor_width-1,:,:] .+ reactor_cells[4:reactor_width,:,:] .- 3 .<= rightward_boosted_reactor[1:reactor_width-3,:,:])
-    @constraint(model,reactor_cells[1:reactor_width-4,:,:] .+ moderators[2:reactor_width-3,:,:] .+ moderators[3:reactor_width-2,:,:] .+ moderators[4:reactor_width-1,:,:] .+ reactor_cells[5:reactor_width,:,:] .- 4 .<= rightward_boosted_reactor[1:reactor_width-4,:,:])
-    @constraint(model,reactor_cells[1:reactor_width-5,:,:] .+ moderators[2:reactor_width-4,:,:] .+ moderators[3:reactor_width-3,:,:] .+ moderators[4:reactor_width-2,:,:] .+ moderators[5:reactor_width-1,:,:] .+ reactor_cells[6:reactor_width,:,:] .- 5 .<= rightward_boosted_reactor[1:reactor_width-5,:,:])
-    
+    @variable(model, 0<=rightward_boosted_reactor[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @variable(model, 0<=rightward_neutron_flux[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @constraint(model, rightward_neutron_flux[reactor_width, 1:reactor_length, 1:reactor_height] .<= reactor_cells[reactor_width, 1:reactor_length, 1:reactor_height])
+    @constraint(model, rightward_neutron_flux[1:(reactor_width-1), 1:reactor_length, 1:reactor_height] .<= (reactor_cells[1:(reactor_width-1), 1:reactor_length, 1:reactor_height] .+ moderators[1:(reactor_width-1), 1:reactor_length, 1:reactor_height]))
+    @constraint(model, rightward_neutron_flux[1:(reactor_width-1), 1:reactor_length, 1:reactor_height] .- (1 .- moderators[1:(reactor_width-1), 1:reactor_length, 1:reactor_height]) .<= rightward_neutron_flux[2:reactor_width, 1:reactor_length, 1:reactor_height])
+    @constraint(model, rightward_neutron_flux[1:(reactor_width-6), 1:reactor_length, 1:reactor_height] .<= 4 .+ reactor_cells[1:(reactor_width-6), 1:reactor_length, 1:reactor_height]
+        .-
+        moderators[2:(reactor_width-5), 1:reactor_length, 1:reactor_height] .- moderators[3:(reactor_width-4), 1:reactor_length, 1:reactor_height]
+        .-
+        moderators[4:(reactor_width-3), 1:reactor_length, 1:reactor_height] .- moderators[5:(reactor_width-2), 1:reactor_length, 1:reactor_height])
+    @constraint(model, rightward_boosted_reactor[reactor_width, 1:reactor_length, 1:reactor_height] .== 0)
+    @constraint(model, rightward_boosted_reactor[1:(reactor_width-1), 1:reactor_length, 1:reactor_height] .<= rightward_neutron_flux[2:reactor_width, 1:reactor_length, 1:reactor_height])
+    @constraint(model, rightward_boosted_reactor .<= reactor_cells)
+    @constraint(model, reactor_cells[1:(reactor_width-1), :, :] .+ reactor_cells[2:reactor_width, :, :] .- 1 .<= rightward_boosted_reactor[1:(reactor_width-1), :, :])
+    @constraint(model, reactor_cells[1:(reactor_width-2), :, :] .+ moderators[2:(reactor_width-1), :, :] .+ reactor_cells[3:reactor_width, :, :] .- 2 .<= rightward_boosted_reactor[1:(reactor_width-2), :, :])
+    @constraint(model, reactor_cells[1:(reactor_width-3), :, :] .+ moderators[2:(reactor_width-2), :, :] .+ moderators[3:(reactor_width-1), :, :] .+ reactor_cells[4:reactor_width, :, :] .- 3 .<= rightward_boosted_reactor[1:(reactor_width-3), :, :])
+    @constraint(model, reactor_cells[1:(reactor_width-4), :, :] .+ moderators[2:(reactor_width-3), :, :] .+ moderators[3:(reactor_width-2), :, :] .+ moderators[4:(reactor_width-1), :, :] .+ reactor_cells[5:reactor_width, :, :] .- 4 .<= rightward_boosted_reactor[1:(reactor_width-4), :, :])
+    @constraint(model, reactor_cells[1:(reactor_width-5), :, :] .+ moderators[2:(reactor_width-4), :, :] .+ moderators[3:(reactor_width-3), :, :] .+ moderators[4:(reactor_width-2), :, :] .+ moderators[5:(reactor_width-1), :, :] .+ reactor_cells[6:reactor_width, :, :] .- 5 .<= rightward_boosted_reactor[1:(reactor_width-5), :, :])
 
-    @variable(model,0<=reactor_heat[1:reactor_width,1:reactor_length,1:reactor_height] <= 28*base_heat)
-    @variable(model,0<=local_heat[1:reactor_width,1:reactor_length,1:reactor_height] <= 56*base_heat)
+
+    @variable(model, 0 <= reactor_heat[1:reactor_width, 1:reactor_length, 1:reactor_height] <= 28*base_heat)
+    @variable(model, 0 <= local_heat[1:reactor_width, 1:reactor_length, 1:reactor_height] <= 56*base_heat)
     #Moderator heat.
-    @variable(model,0<=local_cooling[1:reactor_width,1:reactor_length,1:reactor_height]<=MAX_COOLING)
-    @variable(model,0<=reactor_rf[1:reactor_width,1:reactor_length,1:reactor_height]<=7)
-    @variable(model,0<=moderator_rf[1:reactor_width,1:reactor_length,1:reactor_height]<=7)
-    @constraint(model,sum(local_heat)+sum(reactor_heat)-sum(local_cooling) <= 0)
-    @objective(model,Max,sum(reactor_rf) + sum(moderator_rf))
-    @variable(model, 0 <= first_side[1:reactor_width,1:reactor_length,1:reactor_height] <= 1)
-    @variable(model, 0 <= second_side[1:reactor_width,1:reactor_length,1:reactor_height] <= 1)
-    @variable(model, 0 <= third_side[1:reactor_width,1:reactor_length,1:reactor_height] <= 1)
-    @variable(model, 0 <= fourth_side[1:reactor_width,1:reactor_length,1:reactor_height] <= 1)
-    @variable(model, 0 <= fifth_side[1:reactor_width,1:reactor_length,1:reactor_height] <= 1)
-    @variable(model, 0 <= sixth_side[1:reactor_width,1:reactor_length,1:reactor_height] <= 1)
-    @constraint(model, first_side .+ second_side .+ third_side .+ fourth_side .+ fifth_side .+ sixth_side .>= 
-    upward_boosted_reactor .+ downward_boosted_reactor .+ leftward_boosted_reactor .+ rightward_boosted_reactor .+ forward_boosted_reactor .+ backward_boosted_reactor)
-    @variable(model,0<=active_moderators[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied int.
+    @variable(model, 0<=local_cooling[1:reactor_width, 1:reactor_length, 1:reactor_height]<=MAX_COOLING)
+    @variable(model, 0<=reactor_rf[1:reactor_width, 1:reactor_length, 1:reactor_height]<=7)
+    @variable(model, 0<=moderator_rf[1:reactor_width, 1:reactor_length, 1:reactor_height]<=7)
+    @constraint(model, sum(local_heat)+sum(reactor_heat)-sum(local_cooling) <= 0)
+    @objective(model, Max, sum(reactor_rf) + sum(moderator_rf))
+    @variable(model, 0 <= first_side[1:reactor_width, 1:reactor_length, 1:reactor_height] <= 1)
+    @variable(model, 0 <= second_side[1:reactor_width, 1:reactor_length, 1:reactor_height] <= 1)
+    @variable(model, 0 <= third_side[1:reactor_width, 1:reactor_length, 1:reactor_height] <= 1)
+    @variable(model, 0 <= fourth_side[1:reactor_width, 1:reactor_length, 1:reactor_height] <= 1)
+    @variable(model, 0 <= fifth_side[1:reactor_width, 1:reactor_length, 1:reactor_height] <= 1)
+    @variable(model, 0 <= sixth_side[1:reactor_width, 1:reactor_length, 1:reactor_height] <= 1)
+    @constraint(model, first_side .+ second_side .+ third_side .+ fourth_side .+ fifth_side .+ sixth_side .>=
+        upward_boosted_reactor .+ downward_boosted_reactor .+ leftward_boosted_reactor .+ rightward_boosted_reactor .+ forward_boosted_reactor .+ backward_boosted_reactor)
+    @variable(model, 0<=active_moderators[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1) #Implied int.
 
-    @constraint(model,reactor_rf .<= reactor_cells .+ upward_boosted_reactor .+ downward_boosted_reactor .+ leftward_boosted_reactor .+ rightward_boosted_reactor .+ forward_boosted_reactor .+ backward_boosted_reactor)
+    @constraint(model, reactor_rf .<= reactor_cells .+ upward_boosted_reactor .+ downward_boosted_reactor .+ leftward_boosted_reactor .+ rightward_boosted_reactor .+ forward_boosted_reactor .+ backward_boosted_reactor)
 
 
     #Now, after dealing with all the fuel cells and moderators, the next would be coolant.
     #I will tackle only passive coolant for now.
 
-    @variable(model,0<=water_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @constraint(model,sum(water_coolants) <= water_limit) #Water is a low-cooling so you want to set that as cheaply as possible anyway so take some risk.
-    @variable(model,0<=redstone_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @constraint(model,sum(redstone_coolants) <= redstone_limit)
+    @variable(model, 0<=water_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @constraint(model, sum(water_coolants) <= water_limit) #Water is a low-cooling so you want to set that as cheaply as possible anyway so take some risk.
+    @variable(model, 0<=redstone_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @constraint(model, sum(redstone_coolants) <= redstone_limit)
     #High issues...
-    @variable(model,0<=quartz_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @constraint(model,sum(quartz_coolants) <= quartz_limit)
-    @variable(model,0<=gold_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
-    @constraint(model,sum(gold_coolants) <= gold_limit)
-    @variable(model,0<=glowstone_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #This is to prevent abusive use of "half glowstone" 
-    @constraint(model,sum(glowstone_coolants) <= glowstone_limit)
-    @variable(model,0<=lapis_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 120
-    @constraint(model,sum(lapis_coolants) <= lapis_limit)
-    @variable(model,0<=diamond_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 150
-    @constraint(model,sum(diamond_coolants) <= diamond_limit)
-    @variable(model,0<=liquid_helium_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #This helium is also abused quite a lot.
-    @constraint(model,sum(liquid_helium_coolants) <= liquid_helium_limit)
-    @variable(model,0<=enderium_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)#Implied integers. 120
-    @constraint(model,sum(enderium_coolants) <= enderium_limit)
-    @variable(model,0<=cryotheum_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #160
-    @constraint(model,sum(cryotheum_coolants) <= cryotheum_limit)
-    @variable(model,0<=iron_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 80
-    @constraint(model,sum(iron_coolants) <= iron_limit)
-    @variable(model,0<=emerald_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 160
-    @constraint(model,sum(emerald_coolants) <= emerald_limit)
-    @variable(model,0<=copper_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 80
-    @constraint(model,sum(copper_coolants) <= copper_limit)
-    
-    @variable(model,0<=tin_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 120
-    @constraint(model,sum(tin_coolants) <= tin_limit)
-    @variable(model,0<=magnesium_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 110
-    @constraint(model,sum(magnesium_coolants) <= magnesium_limit)
+    @variable(model, 0<=quartz_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @constraint(model, sum(quartz_coolants) <= quartz_limit)
+    @variable(model, 0<=gold_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)
+    @constraint(model, sum(gold_coolants) <= gold_limit)
+    @variable(model, 0<=glowstone_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1) #This is to prevent abusive use of "half glowstone" 
+    @constraint(model, sum(glowstone_coolants) <= glowstone_limit)
+    @variable(model, 0<=lapis_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1) #Implied integers. 120
+    @constraint(model, sum(lapis_coolants) <= lapis_limit)
+    @variable(model, 0<=diamond_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1) #Implied integers. 150
+    @constraint(model, sum(diamond_coolants) <= diamond_limit)
+    @variable(model, 0<=liquid_helium_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1) #This helium is also abused quite a lot.
+    @constraint(model, sum(liquid_helium_coolants) <= liquid_helium_limit)
+    @variable(model, 0<=enderium_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1)#Implied integers. 120
+    @constraint(model, sum(enderium_coolants) <= enderium_limit)
+    @variable(model, 0<=cryotheum_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1) #160
+    @constraint(model, sum(cryotheum_coolants) <= cryotheum_limit)
+    @variable(model, 0<=iron_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1) #Implied integers. 80
+    @constraint(model, sum(iron_coolants) <= iron_limit)
+    @variable(model, 0<=emerald_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1) #Implied integers. 160
+    @constraint(model, sum(emerald_coolants) <= emerald_limit)
+    @variable(model, 0<=copper_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1) #Implied integers. 80
+    @constraint(model, sum(copper_coolants) <= copper_limit)
 
-    @constraint(model, local_cooling .<= water_coolants .* water_cooling .+redstone_coolants .* redstone_cooling 
-    .+quartz_coolants .* quartz_cooling .+gold_coolants .* gold_cooling .+glowstone_coolants 
-    .* glowstone_cooling .+lapis_coolants .* lapis_cooling .+diamond_coolants .* diamond_cooling 
-    .+liquid_helium_coolants .* liquid_helium_cooling .+enderium_coolants .* enderium_cooling 
-    .+cryotheum_coolants .* cryotheum_cooling .+iron_coolants .* iron_cooling .+emerald_coolants 
-    .* emerald_cooling .+copper_coolants .* copper_cooling .+tin_coolants .* tin_cooling 
-    .+magnesium_coolants .* magnesium_cooling)
+    @variable(model, 0<=tin_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1) #Implied integers. 120
+    @constraint(model, sum(tin_coolants) <= tin_limit)
+    @variable(model, 0<=magnesium_coolants[1:reactor_width, 1:reactor_length, 1:reactor_height]<=1) #Implied integers. 110
+    @constraint(model, sum(magnesium_coolants) <= magnesium_limit)
+
+    @constraint(model, local_cooling .<= water_coolants .* water_cooling .+ redstone_coolants .* redstone_cooling
+        .+
+        quartz_coolants .* quartz_cooling .+ gold_coolants .* gold_cooling .+ glowstone_coolants
+        .*
+        glowstone_cooling .+ lapis_coolants .* lapis_cooling .+ diamond_coolants .* diamond_cooling
+        .+
+        liquid_helium_coolants .* liquid_helium_cooling .+ enderium_coolants .* enderium_cooling
+        .+
+        cryotheum_coolants .* cryotheum_cooling .+ iron_coolants .* iron_cooling .+ emerald_coolants
+        .*
+        emerald_cooling .+ copper_coolants .* copper_cooling .+ tin_coolants .* tin_cooling
+        .+
+        magnesium_coolants .* magnesium_cooling)
     #Final constraint that all blocks sum up to the maximum of 1 each block. Each block can't be more than one thing at once.
 
-    @constraint(model, reactor_cells .+ moderators .+ water_coolants .+ redstone_coolants .+ quartz_coolants .+ gold_coolants 
-    .+ glowstone_coolants .+ lapis_coolants .+ diamond_coolants .+ liquid_helium_coolants .+ enderium_coolants .+ cryotheum_coolants 
-    .+ iron_coolants .+ emerald_coolants .+ copper_coolants .+ tin_coolants .+ magnesium_coolants .<= 1)
+    @constraint(model, reactor_cells .+ moderators .+ water_coolants .+ redstone_coolants .+ quartz_coolants .+ gold_coolants
+        .+
+        glowstone_coolants .+ lapis_coolants .+ diamond_coolants .+ liquid_helium_coolants .+ enderium_coolants .+ cryotheum_coolants
+        .+
+        iron_coolants .+ emerald_coolants .+ copper_coolants .+ tin_coolants .+ magnesium_coolants .<= 1)
 
     #Tin has a special condition that requires extra variables.
 
 
-    
 
-    @constraint(model,moderator_rf .<= 7 .* moderators)
-    
+
+    @constraint(model, moderator_rf .<= 7 .* moderators)
+
     relaxation_time_limit = time_limit*0.8
     time_limit -= relaxation_time_limit
     #nuclearcraftoptimize_relaxed(base_energy,base_heat,reactor_width,reactor_length,reactor_height,reactor_cell_limit,num_threads=num_threads, time_limit = relaxation_time_limit, water_cooling=water_cooling, water_limit=water_limit,redstone_cooling=redstone_cooling, redstone_limit=redstone_limit,quartz_cooling=quartz_cooling, quartz_limit=quartz_limit,gold_cooling=gold_cooling, gold_limit=gold_limit,glowstone_cooling=glowstone_cooling, glowstone_limit=glowstone_limit,lapis_cooling=lapis_cooling, lapis_limit=lapis_limit,diamond_cooling=diamond_cooling, diamond_limit=diamond_limit,liquid_helium_cooling=liquid_helium_cooling, liquid_helium_limit=liquid_helium_limit,enderium_cooling=enderium_cooling, enderium_limit=enderium_limit,cryotheum_cooling=cryotheum_cooling, cryotheum_limit=cryotheum_limit,iron_cooling=iron_cooling, iron_limit=iron_limit,emerald_cooling=emerald_cooling, emerald_limit=emerald_limit,copper_cooling=copper_cooling, copper_limit=copper_limit,tin_cooling=tin_cooling, tin_limit=tin_limit,magnesium_cooling=magnesium_cooling, magnesium_limit=magnesium_limit)
     for x in 1:reactor_width, y in 1:reactor_length, z in 1:reactor_height
-        
 
-        neighbors = get_neighbors(x,y,z,reactor_width,reactor_length,reactor_height)
+
+        neighbors = get_neighbors(x, y, z, reactor_width, reactor_length, reactor_height)
 
         #These are the heat.
 
         #Not inactive moderator...
         #@constraint(model,active_moderators[x,y,z]*8 <= 7*moderators[x,y,z] + sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
-        @constraint(model,active_moderators[x,y,z] <= moderators[x,y,z] )
-        @constraint(model,active_moderators[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
-        @constraint(model,local_heat[x,y,z] >= base_heat*(moderators[x,y,z] - sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))) #Heat for inactive moderators.
-        @constraint(model,local_heat[x,y,z] + (56*base_heat)*(1-moderators[x,y,z]) >= sum(reactor_heat[i,j,k] for (i,j,k) in neighbors)/3) #Heat for active moderators
-        @constraint(model,reactor_heat[x,y,z] + (28*base_heat)*(1-reactor_cells[x,y,z]) >= base_heat*(1+2*first_side[x,y,z]+3*second_side[x,y,z]+4*third_side[x,y,z]+5*fourth_side[x,y,z]+6*fifth_side[x,y,z]+7*sixth_side[x,y,z]))
-        @constraint(model,moderator_rf[x,y,z] <= sum(reactor_rf[i,j,k] for (i,j,k) in neighbors)/6)
+        @constraint(model, active_moderators[x, y, z] <= moderators[x, y, z])
+        @constraint(model, active_moderators[x, y, z] <= sum(reactor_cells[i, j, k] for (i, j, k) in neighbors))
+        @constraint(model, local_heat[x, y, z] >= base_heat*(moderators[x, y, z] - sum(reactor_cells[i, j, k] for (i, j, k) in neighbors))) #Heat for inactive moderators.
+        @constraint(model, local_heat[x, y, z] + (56*base_heat)*(1-moderators[x, y, z]) >= sum(reactor_heat[i, j, k] for (i, j, k) in neighbors)/3) #Heat for active moderators
+        @constraint(model, reactor_heat[x, y, z] + (28*base_heat)*(1-reactor_cells[x, y, z]) >= base_heat*(1+2*first_side[x, y, z]+3*second_side[x, y, z]+4*third_side[x, y, z]+5*fourth_side[x, y, z]+6*fifth_side[x, y, z]+7*sixth_side[x, y, z]))
+        @constraint(model, moderator_rf[x, y, z] <= sum(reactor_rf[i, j, k] for (i, j, k) in neighbors)/6)
 
         #Now, these are the cooling constraints.
 
-        
+
         #Water Cooler	60 H/t	Must be adjacent to at least one Reactor Cell or active moderator block.
-        @constraint(model,water_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors) + sum(active_moderators[i,j,k] for (i,j,k) in neighbors))
+        @constraint(model, water_coolants[x, y, z] <= sum(reactor_cells[i, j, k] for (i, j, k) in neighbors) + sum(active_moderators[i, j, k] for (i, j, k) in neighbors))
         #Redstone Cooler	90 H/t	Must be adjacent to at least one Reactor Cell.
         #@constraint(model,redstone_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
         #Combined later. 
@@ -297,162 +318,148 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
 
         #@constraint(model,lapis_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
         if length(neighbors) == 6
-            @constraint(model,lapis_coolants[x,y,z] <= 0)
+            @constraint(model, lapis_coolants[x, y, z] <= 0)
         end
         #Diamond Cooler	150 H/t	Must be adjacent to at least one valid Water Cooler and one valid Quartz Cooler.
         #@constraint(model,diamond_coolants[x,y,z] <= sum(water_coolants[i,j,k] for (i,j,k) in neighbors))
-        @constraint(model,diamond_coolants[x,y,z] <= sum(quartz_coolants[i,j,k] for (i,j,k) in neighbors))
+        @constraint(model, diamond_coolants[x, y, z] <= sum(quartz_coolants[i, j, k] for (i, j, k) in neighbors))
         #The water constraint is shared for later.
 
         #Liquid Helium Cooler	140 H/t	Must be adjacent to exactly one valid Redstone Cooler and at least one Reactor Casing.
         if length(neighbors) <= 5
             #@constraint(model,liquid_helium_coolants[x,y,z] <= sum(redstone_coolants[i,j,k] for (i,j,k) in neighbors)) #Must have at least one redstone coolant.
             #However, due to shared redstone coolant requirements, we will keep it later.
-            @constraint(model,liquid_helium_coolants[x,y,z]*6 + sum(redstone_coolants[i,j,k] for (i,j,k) in neighbors) <= 7) #Cannot exceed one.
+            @constraint(model, liquid_helium_coolants[x, y, z]*6 + sum(redstone_coolants[i, j, k] for (i, j, k) in neighbors) <= 7) #Cannot exceed one.
         else
-            @constraint(model,liquid_helium_coolants[x,y,z] <= 0)
+            @constraint(model, liquid_helium_coolants[x, y, z] <= 0)
         end
         #Enderium Cooler*	120 H/t	Must be adjacent to exactly three Reactor Casings at exactly one vertex.
         if length(neighbors) != 3
-            @constraint(model,enderium_coolants[x,y,z] <= 0)
+            @constraint(model, enderium_coolants[x, y, z] <= 0)
         end
         #Cryotheum Cooler*	160 H/t	Must be adjacent to at least two Reactor Cells. But we will cover later.
         #@constraint(model,2*cryotheum_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
 
         #Iron Cooler	80 H/t	Must be adjacent to at least one valid Gold Cooler.
-        @constraint(model,iron_coolants[x,y,z] <= sum(gold_coolants[i,j,k] for (i,j,k) in neighbors))
+        @constraint(model, iron_coolants[x, y, z] <= sum(gold_coolants[i, j, k] for (i, j, k) in neighbors))
         #Emerald Cooler	160 H/t	Must be adjacent to at least one active moderator block and one Reactor Cell.
         #@constraint(model,emerald_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
         #@constraint(model,emerald_coolants[x,y,z] <= sum(active_moderators[i,j,k] for (i,j,k) in neighbors))
 
 
         #Copper Cooler	80 H/t	Must be adjacent to at least one valid Glowstone Cooler.
-        @constraint(model,copper_coolants[x,y,z] <= sum(glowstone_coolants[i,j,k] for (i,j,k) in neighbors))
+        @constraint(model, copper_coolants[x, y, z] <= sum(glowstone_coolants[i, j, k] for (i, j, k) in neighbors))
         #Tin Cooler	120 H/t	Must be at least between two valid Lapis Coolers along the same axis.
-        
+
         #But we will apply relaxation and say that tin only needs to be adjacent to the wall AND two lapis.
         if (length(neighbors) == 6 || length(neighbors) == 3)
-            @constraint(model, tin_coolants[x,y,z] <= 0)
+            @constraint(model, tin_coolants[x, y, z] <= 0)
         else
-            @constraint(model,2*tin_coolants[x,y,z] <= sum(lapis_coolants[i,j,k] for (i,j,k) in neighbors))
+            @constraint(model, 2*tin_coolants[x, y, z] <= sum(lapis_coolants[i, j, k] for (i, j, k) in neighbors))
         end
 
         #Due to relaxation, we need to combine them.
         #These are the requirements for reactor and active moderator cells.
 
-        @constraint(model, 2*cryotheum_coolants[x,y,z] + redstone_coolants[x,y,z] + lapis_coolants[x,y,z] + emerald_coolants[x,y,z] <= sum(reactor_cells[i,j,k] for (i,j,k) in neighbors))
-        @constraint(model, 2*glowstone_coolants[x,y,z] + magnesium_coolants[x,y,z] + quartz_coolants[x,y,z] + emerald_coolants[x,y,z] <= sum(active_moderators[i,j,k] for (i,j,k) in neighbors))
-        @constraint(model, liquid_helium_coolants[x,y,z] + gold_coolants[x,y,z] <= sum(redstone_coolants[i,j,k] for (i,j,k) in neighbors))
-        @constraint(model, diamond_coolants[x,y,z] + gold_coolants[x,y,z] <= sum(water_coolants[i,j,k] for (i,j,k) in neighbors))
+        @constraint(model, 2*cryotheum_coolants[x, y, z] + redstone_coolants[x, y, z] + lapis_coolants[x, y, z] + emerald_coolants[x, y, z] <= sum(reactor_cells[i, j, k] for (i, j, k) in neighbors))
+        @constraint(model, 2*glowstone_coolants[x, y, z] + magnesium_coolants[x, y, z] + quartz_coolants[x, y, z] + emerald_coolants[x, y, z] <= sum(active_moderators[i, j, k] for (i, j, k) in neighbors))
+        @constraint(model, liquid_helium_coolants[x, y, z] + gold_coolants[x, y, z] <= sum(redstone_coolants[i, j, k] for (i, j, k) in neighbors))
+        @constraint(model, diamond_coolants[x, y, z] + gold_coolants[x, y, z] <= sum(water_coolants[i, j, k] for (i, j, k) in neighbors))
         #The final constraint that sums the suitability was given above
         #Magnesium Cooler	110 H/t	Must be adjacent to at least one Reactor Casing and one active moderator block.
         if length(neighbors) == 6
-            @constraint(model,magnesium_coolants[x,y,z] <= 0)
+            @constraint(model, magnesium_coolants[x, y, z] <= 0)
         end
     end
-    
+
     #println(model)
 
-    
+
 
     optimize!(model)
     solution_summary(model)
 
     println("Starting solution.")
 
-    tolerance = 0.5
-    for z in 1:reactor_height
-        for y in 1:reactor_length
-            for x in 1:reactor_width
-                if value(reactor_cells[x,y,z] )≈ 1.0
-                    print("[]")
-                elseif value(moderators[x,y,z]) ≈ 1.0
-                    print("##")
-                elseif value(water_coolants[x,y,z]) ≈ 1.0
-                    print("Wt")
-                elseif value(redstone_coolants[x,y,z]) ≈ 1.0
-                    print("Rs")
-                elseif value(quartz_coolants[x,y,z]) ≈ 1.0
-                    print("Qz")
-                elseif value(gold_coolants[x,y,z]) ≈ 1.0
-                    print("Au")
-                elseif value(glowstone_coolants[x,y,z]) ≈ 1.0
-                    print("Gs")
-                elseif value(lapis_coolants[x,y,z]) ≈ 1.0
-                    print("Lp")
-                elseif value(diamond_coolants[x,y,z]) ≈ 1.0
-                    print("Dm")
-                elseif value(liquid_helium_coolants[x,y,z]) ≈ 1.0
-                    print("He")
-                elseif value(enderium_coolants[x,y,z]) ≈ 1.0
-                    print("Ed")
-                elseif value(cryotheum_coolants[x,y,z]) ≈ 1.0
-                    print("Cr")
-                elseif value(iron_coolants[x,y,z]) ≈ 1.0
-                    print("Fe")
-                elseif value(emerald_coolants[x,y,z]) ≈ 1.0
-                    print("Em")
-                elseif value(copper_coolants[x,y,z]) ≈ 1.0
-                    print("Cu")
-                elseif value(tin_coolants[x,y,z]) ≈ 1.0
-                    print("Sn")
-                elseif value(magnesium_coolants[x,y,z]) ≈ 1.0
-                    print("Mg") 
-                else
-                    if value(gold_coolants[x,y,z]) >= tolerance && gold_limit > 0
+    occupied = falses(reactor_width, reactor_length, reactor_height)
+
+    for tolerance in (0.99, 0.8, 0.6, 0.4, 0.2)
+        println("Tolerance: ", tolerance)
+        println("=====================================================================")
+        for z in 1:reactor_height
+            for y in 1:reactor_length
+                for x in 1:reactor_width
+                    if !occupied[x, y, z]
+                        print("OO") #Occupied.
+                    elseif value(gold_coolants[x, y, z]) >= tolerance && gold_limit > 0
                         print("Au")
                         gold_limit -= 1
-                    elseif value(glowstone_coolants[x,y,z]) >= tolerance && glowstone_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(glowstone_coolants[x, y, z]) >= tolerance && glowstone_limit > 0
                         print("Gs")
                         glowstone_limit -= 1
-                    elseif value(cryotheum_coolants[x,y,z]) >= tolerance && cryotheum_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(cryotheum_coolants[x, y, z]) >= tolerance && cryotheum_limit > 0
                         print("Cr")
                         cryotheum_limit -= 1
-                    elseif value(emerald_coolants[x,y,z]) >= tolerance && emerald_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(emerald_coolants[x, y, z]) >= tolerance && emerald_limit > 0
                         print("Em")
                         emerald_limit -= 1
-                    elseif value(diamond_coolants[x,y,z]) >= tolerance && diamond_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(diamond_coolants[x, y, z]) >= tolerance && diamond_limit > 0
                         print("Dm")
                         diamond_limit -= 1
-                    elseif value(tin_coolants[x,y,z]) >= tolerance && tin_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(tin_coolants[x, y, z]) >= tolerance && tin_limit > 0
                         print("Sn")
                         tin_limit -= 1
-                    elseif value(lapis_coolants[x,y,z]) >= tolerance && lapis_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(lapis_coolants[x, y, z]) >= tolerance && lapis_limit > 0
                         print("Lp")
                         lapis_limit -= 1
-                    elseif value(enderium_coolants[x,y,z]) >= tolerance && enderium_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(enderium_coolants[x, y, z]) >= tolerance && enderium_limit > 0
                         print("Ed")
                         enderium_limit -= 1
-                    elseif value(magnesium_coolants[x,y,z]) >= tolerance && magnesium_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(magnesium_coolants[x, y, z]) >= tolerance && magnesium_limit > 0
                         print("Mg")
                         magnesium_limit -= 1
-                    elseif value(copper_coolants[x,y,z]) >= tolerance && copper_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(copper_coolants[x, y, z]) >= tolerance && copper_limit > 0
                         print("Cu")
                         copper_limit -= 1
-                    elseif value(iron_coolants[x,y,z]) >= tolerance && iron_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(iron_coolants[x, y, z]) >= tolerance && iron_limit > 0
                         print("Fe")
                         iron_limit -= 1
-                    elseif value(water_coolants[x,y,z]) >= tolerance && water_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(water_coolants[x, y, z]) >= tolerance && water_limit > 0
                         print("Wt")
                         water_limit -= 1
-                    elseif value(redstone_coolants[x,y,z]) >= tolerance && redstone_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(redstone_coolants[x, y, z]) >= tolerance && redstone_limit > 0
                         print("Rs")
                         redstone_limit -= 1
-                    elseif value(quartz_coolants[x,y,z]) >= tolerance && quartz_limit > 0
+                        occupied[x, y, z] = true
+                    elseif value(quartz_coolants[x, y, z]) >= tolerance && quartz_limit > 0
                         print("Qz")
                         quartz_limit -= 1
+                        occupied[x, y, z] = true
                     else
-                        print("  ")
+                        print("XX")
                     end
                 end
+                println()
             end
-            println()
+            println("---------------------------------------------")
         end
-        println("---------------------------------------------")
+        println("=====================================================================")
     end
 end
 
 
-nuclearcraftoptimize(672,375,5,5,5,8,num_threads = 8,time_limit = 180.0)
+nuclearcraftoptimize(672, 375, 4, 4, 4, 8, num_threads=8, time_limit=120.0)
 
 #We got about 548% gap.
