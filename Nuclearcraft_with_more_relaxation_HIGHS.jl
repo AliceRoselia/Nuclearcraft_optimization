@@ -29,7 +29,6 @@ end
 
 
 
-function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_length, reactor_height, reactor_cell_limit = 20000;
 function nuclearcraftoptimize(base_energy, base_heat, reactor_width, reactor_length, reactor_height, reactor_cell_limit=20000;
     water_cooling=60, water_limit=20000, redstone_cooling=90, redstone_limit=20000,
     quartz_cooling=90, quartz_limit=20000, gold_cooling=120, gold_limit=20000, glowstone_cooling=130, glowstone_limit=20000,
@@ -389,7 +388,7 @@ function nuclearcraftoptimize(base_energy, base_heat, reactor_width, reactor_len
         for z in 1:reactor_height
             for y in 1:reactor_length
                 for x in 1:reactor_width
-                    if !occupied[x, y, z]
+                    if  occupied[x, y, z]
                         print("OO") #Occupied.
                     elseif value(gold_coolants[x, y, z]) >= tolerance && gold_limit > 0
                         print("Au")
