@@ -305,8 +305,8 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     @variable(model,0<=local_heat[1:reactor_width,1:reactor_length,1:reactor_height] <= 56*base_heat)
     #Moderator heat.
     @variable(model,0<=local_cooling[1:reactor_width,1:reactor_length,1:reactor_height]<=MAX_COOLING)
-    @variable(model,0<=reactor_rf[1:reactor_width,1:reactor_length,1:reactor_height]<=6)
-    @variable(model,0<=moderator_rf[1:reactor_width,1:reactor_length,1:reactor_height]<=6)
+    @variable(model,0<=reactor_rf[1:reactor_width,1:reactor_length,1:reactor_height]<=7)
+    @variable(model,0<=moderator_rf[1:reactor_width,1:reactor_length,1:reactor_height]<=7)
 
     
     @constraint(model,sum(local_heat)+sum(reactor_heat)-sum(local_cooling) <= 0)

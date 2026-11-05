@@ -43,8 +43,11 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     model = Model(HiGHS.Optimizer)
     Highs_resetGlobalScheduler(1)
     set_attribute(model, MOI.NumberOfThreads(), num_threads)
+    set_optimizer_attribute(model,"hipo_parallel_type","tree")
+    set_optimizer_attribute(model,"parallel","on")
     if time_limit !== 0.0
-        set_time_limit_sec(model,time_limit)
+
+        set_optimizer_attribute(model, "time_limit", time_limit)
     end
     set_string_names_on_creation(model,false)
     
@@ -177,8 +180,8 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     @variable(model,0<=local_heat[1:reactor_width,1:reactor_length,1:reactor_height] <= 56*base_heat)
     #Moderator heat.
     @variable(model,0<=local_cooling[1:reactor_width,1:reactor_length,1:reactor_height]<=MAX_COOLING)
-    @variable(model,0<=reactor_rf[1:reactor_width,1:reactor_length,1:reactor_height]<=6)
-    @variable(model,0<=moderator_rf[1:reactor_width,1:reactor_length,1:reactor_height]<=6)
+    @variable(model,0<=reactor_rf[1:reactor_width,1:reactor_length,1:reactor_height]<=7)
+    @variable(model,0<=moderator_rf[1:reactor_width,1:reactor_length,1:reactor_height]<=7)
     @constraint(model,sum(local_heat)+sum(reactor_heat)-sum(local_cooling) <= 0)
     @objective(model,Max,sum(reactor_rf) + sum(moderator_rf))
     @variable(model, 0 <= first_side[1:reactor_width,1:reactor_length,1:reactor_height] <= 1)
@@ -197,25 +200,25 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     #Now, after dealing with all the fuel cells and moderators, the next would be coolant.
     #I will tackle only passive coolant for now.
 
-    @variable(model,water_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=water_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
     @constraint(model,sum(water_coolants) <= water_limit)
-    @variable(model,redstone_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=redstone_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
     @constraint(model,sum(redstone_coolants) <= redstone_limit)
-    @variable(model,quartz_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=quartz_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
     @constraint(model,sum(quartz_coolants) <= quartz_limit)
-    @variable(model,gold_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=gold_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
     @constraint(model,sum(gold_coolants) <= gold_limit)
-    @variable(model,glowstone_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=glowstone_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
     @constraint(model,sum(glowstone_coolants) <= glowstone_limit)
     @variable(model,0<=lapis_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 120
     @constraint(model,sum(lapis_coolants) <= lapis_limit)
     @variable(model,0<=diamond_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 150
     @constraint(model,sum(diamond_coolants) <= diamond_limit)
-    @variable(model,liquid_helium_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin)
+    @variable(model,0<=liquid_helium_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
     @constraint(model,sum(liquid_helium_coolants) <= liquid_helium_limit)
     @variable(model,0<=enderium_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)#Implied integers. 120
     @constraint(model,sum(enderium_coolants) <= enderium_limit)
-    @variable(model,cryotheum_coolants[1:reactor_width,1:reactor_length,1:reactor_height],Bin) #160
+    @variable(model,0<=cryotheum_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #160
     @constraint(model,sum(cryotheum_coolants) <= cryotheum_limit)
     @variable(model,0<=iron_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1) #Implied integers. 80
     @constraint(model,sum(iron_coolants) <= iron_limit)
