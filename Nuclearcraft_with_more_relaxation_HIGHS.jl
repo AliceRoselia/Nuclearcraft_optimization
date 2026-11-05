@@ -204,6 +204,7 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
     @constraint(model,sum(water_coolants) <= water_limit) #Water is a low-cooling so you want to set that as cheaply as possible anyway so take some risk.
     @variable(model,0<=redstone_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
     @constraint(model,sum(redstone_coolants) <= redstone_limit)
+    #High issues...
     @variable(model,0<=quartz_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
     @constraint(model,sum(quartz_coolants) <= quartz_limit)
     @variable(model,0<=gold_coolants[1:reactor_width,1:reactor_length,1:reactor_height]<=1)
@@ -452,6 +453,6 @@ function nuclearcraftoptimize(base_energy, base_heat,reactor_width, reactor_leng
 end
 
 
-nuclearcraftoptimize(672,375,4,4,4,8,num_threads = 8,time_limit = 180.0)
+nuclearcraftoptimize(672,375,5,5,5,8,num_threads = 8,time_limit = 180.0)
 
 #We got about 548% gap.
