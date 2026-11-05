@@ -388,7 +388,11 @@ function nuclearcraftoptimize(base_energy, base_heat, reactor_width, reactor_len
         for z in 1:reactor_height
             for y in 1:reactor_length
                 for x in 1:reactor_width
-                    if  occupied[x, y, z]
+                    if value(reactor_cells[x,y,z] )≈ 1.0
+                        print("[]")
+                    elseif value(moderators[x,y,z]) ≈ 1.0
+                        print("##")
+                    elseif occupied[x, y, z]
                         print("OO") #Occupied.
                     elseif value(gold_coolants[x, y, z]) >= tolerance && gold_limit > 0
                         print("Au")
